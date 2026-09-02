@@ -41,14 +41,16 @@ def lanes(explicit):
         if not name or b.get("enabled") is False or b.get("modality") not in (None, "chat"):
             continue
         tier = (b.get("quality_tier") or "unknown").lower()
-        out.append({"backend": name, "provider": b.get("provider") or b.get("route"),
+        out.append({"backend": name, "provider": b.get("provider") or b.get("route") or name.split("-")[0],
                     "model": b.get("model"), "tier": tier, "rank": TIER_RANK.get(tier, -1)})
     if explicit:
         want = [x.strip() for x in explicit.split(",") if x.strip()]
         known = {l["backend"]: l for l in out}
         out = [known.get(w, {"backend": w, "provider": None, "model": None, "tier": "unknown", "rank": -1})
                for w in want]
-    return sorted(out, key=lambda l: (l["rank"], l["backend"]))
+    known = sorted((l for l in out if l["rank"] >= 0), key=lambda l: (l["rank"], l["backend"]))
+    unknown = sorted((l for l in out if l["rank"] < 0), key=lambda l: l["backend"])
+    return known, unknown                                # untiered lanes always go last
 
 
 def extract_proof(reply, name):
@@ -101,9 +103,8 @@ def main():
         names = [n.strip() for n in args.only.split(",") if n.strip()]
     else:
         names = random.Random(args.seed).sample(names, min(args.sample, len(names)))
-    order = lanes(args.lanes)
-    if args.order == "desc":
-        order.reverse()
+    known, unknown = lanes(args.lanes)
+    order = (known[::-1] if args.order == "desc" else known) + unknown
     mode = f"{'ladder' if args.stop_on_accept else 'sweep'}-{args.order}"
     print(f"run {run_id}: {len(names)} targets × {len(order)} lanes × {args.attempts} attempts, "
           f"mode {mode}, cap {args.max_calls} calls")
