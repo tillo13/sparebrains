@@ -114,6 +114,27 @@ frontier lanes were only ever asked the hard one, where 21 of their 35 attempts 
 errors (benched). Per-lane yield for the strong tiers is therefore still unmeasured; that is
 what the §7 sweep run is for. Tiny and low produced one accept in 70 attempts.
 
+**Sweep 1 measured (run 33586743955, 2026-09-02 03:23→05:12 UTC, sweep-asc, 30 targets, seed 2,
+lanes medium and up, benched skipped at start, 2 in flight, cap 1,400):**
+
+| item | measured |
+|---|---|
+| attempts | 1,050 (479 router errors = lanes benched mid-run, 12 no proof, 318 Lean rejects) |
+| kernel-verified | 241, on 17 of 30 targets |
+| by tier, accepts/attempts (errors) | medium 65/240 (59) · high 153/630 (296) · frontier 23/180 (124) |
+| top lanes, verified per 1,000 answered | ten Mistral lanes at 500–520; the medium `mistral-devstral` equals the high ones |
+| per attempt | 10.3 s model call (non-error); 2 in flight → 1 h 49 min for the chunk |
+| unsolved by every lane | `aime_1990_p4`, `aime_1999_p11`, `amc12a_2008_p25`, `amc12a_2021_p12`, `imo_1959_p1`, `imo_1985_p6`, `imo_2001_p6`, `mathd_algebra_215`, `mathd_algebra_293`, `mathd_numbertheory_435`, `mathd_numbertheory_495`, `numbertheory_notequiv2i2jasqbsqdiv8`, `algebra_apbon2pownleqapownpbpowon2` |
+| cost | $0; ledger commit `ce7df0e` |
+
+Read: the strong lanes clear the easy contest items broadly (23 of 25 lanes proved
+`mathd_numbertheory_517`), and the unsolved list is exactly the shape expected: the IMO items,
+the late AMC/AIME problems, and a few algebra identities. Nearly half of all attempts were
+lost to benching: high and frontier lanes get benched by the router mid-run (rate limits), so
+their answered counts are small. Skipping benched lanes only at the start is not enough;
+re-checking bench state per attempt is a Phase B item. Across all runs: 20 of 244 targets
+have a kernel-verified proof.
+
 ## 3. Lanes, and the substrate each one fits
 
 | lane | verifier | substrate | status |

@@ -5,6 +5,12 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **Sweep 1 closed: 241 verified proofs on 17 of 30 targets, 1,050 attempts, $0.** The
+  per-lane number exists now: the best free lanes return about one accepted proof per two
+  answered asks on this exam paper (`PLAN.md` §2). Nearly half of attempts were lost to
+  lanes benched mid-run; re-checking bench state per attempt moves up to the next loop change.
+  The 13 unsolved are the IMO items, late AMC/AIME problems, and a few algebra identities:
+  the "not yet" list. Ledger commit `ce7df0e`. 20 of 244 targets verified across all runs.
 - **Unsolved means not yet, never never.** Andy: "the ones that'll never be solved — that's
   exactly my challenge and hope here, that we WILL solve them at some point … saving
   thoughts/theories/equations that are close or help others learn from them or iterate on
