@@ -1,14 +1,22 @@
 """The loop. Ask the free pool for proofs, let the kernel grade them, keep every receipt.
 
+    python3 tools/attempt.py --ladder --jobs 2 --max-minutes 320          # what the schedule runs
+    python3 tools/attempt.py --ladder --plan                                # print the queue, call nothing
     python3 tools/attempt.py --sample 5 --seed 1 --order asc --stop-on-accept --max-calls 300
     python3 tools/attempt.py --sample 30 --seed 2 --min-tier medium --skip-benched --jobs 2 --max-calls 1400
 
-Lanes are walked by quality tier (tiny → frontier, or reversed with --order desc).
-With --stop-on-accept a target stops at the first kernel-verified proof, so the
-ledger records the cheapest brain that solved it. Without it every lane gets every
-target (the per-lane yield measurement). Each attempt writes one compact line to the
-git ledger and posts its full transcript to kumori's sparebrains_attempts table.
-Accepted proofs are saved whole under verified/.
+--ladder is the 24/7 mode (2026-09-02): every lane, every target of every set, --attempts
+tries per (target, lane) cell, first tries of the whole ladder before anyone's second try,
+rungs in order (tools/ladder.py). The queue is whatever the git ledger says is still owed;
+a job works until its wall-clock budget, and the workflow chains the next one. Lanes the
+router is benching are left in the queue for later, never recorded as skipped.
+
+The older modes stay for hand runs: lanes walked by quality tier (tiny → frontier, or
+reversed with --order desc); --stop-on-accept stops a target at its first kernel-verified
+proof, so the ledger records the cheapest brain that solved it; without it every lane gets
+every target. Each attempt writes one compact line to the git ledger and posts its full
+transcript to kumori's sparebrains_attempts table. Accepted proofs are saved whole under
+verified/.
 """
 import argparse, hashlib, json, os, random, re, sys, threading, time
 from collections import defaultdict, deque
@@ -18,6 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT), str(ROOT / "tools")]
 from check import judge                                              # the judge, unchanged
+from ladder import rung_of, failure_kind, sort_key, RUNGS
 from utilities.kumori_api_client import (KumoriAPIError, init as kumori_init, llm_backends, llm_backoff_state,
                                          llm_chat, sparebrains_attempt)
 
@@ -29,11 +38,15 @@ SITE = "https://sparebrains.kumori.ai"
 FENCE = re.compile(r"```(?:lean4?)?\s*\n(.*?)```", re.S)
 SYSTEM = ("You are an expert in Lean 4 and Mathlib. You complete formal proofs. "
           "You answer with code only.")
+EXAMPLE = ("import Mathlib\n\n/-- A demonstration, not a target. -/\n"
+           "theorem demo_mul_two (n : ℕ) : n * 2 = n + n := by\n  ring\n")
 ASK = ("Complete the proof in this Lean 4 file (Lean v4.33.1, mathlib v4.33.1, `import Mathlib` is "
        "already there). Replace only the `sorry` with a complete proof.\n"
        "Rules: keep the theorem statement byte-for-byte; no `sorry`, `admit`, or `native_decide`; "
        "no new axioms; Lean 4 syntax, not Lean 3.\n"
-       "Answer with the ENTIRE file inside one ```lean fence and nothing else.\n\n")
+       "Answer with the ENTIRE file inside one ```lean fence and nothing else. "
+       "This is the exact shape of a correct answer, for a different theorem:\n\n"
+       "```lean\n" + EXAMPLE + "```\n\nNow the file to complete:\n\n")
 
 
 def lanes(explicit, min_tier=None, skip_benched=False):
@@ -108,8 +121,62 @@ def extract_proof(reply, name):
     return "\n".join(lines).rstrip() + "\n"
 
 
+def load_sets(spec):
+    """[(target_set, dir, [names])] for a comma-separated list of sets under targets/."""
+    out = []
+    for item in [x.strip() for x in spec.split(",") if x.strip()]:
+        tdir = ROOT / "targets" / item
+        names = sorted(p.stem for p in tdir.glob("*.lean"))
+        if names:
+            out.append((item, tdir, names))
+        else:
+            print(f"set {item}: no targets on disk, skipped")
+    return out
+
+
+def owed_history():
+    """(set, target, backend) → {'answered': n, 'errors': n} across every ledger ever committed."""
+    hist = defaultdict(lambda: {"answered": 0, "errors": 0})
+    for f in (ROOT / "ledger").glob("**/*.jsonl"):
+        for line in f.read_text().splitlines():
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            key = (r.get("target_set"), r.get("target"), r.get("backend"))
+            if r.get("verdict") in ("accept", "reject"):
+                hist[key]["answered"] += 1
+            elif r.get("verdict") == "error":
+                hist[key]["errors"] += 1
+    return hist
+
+
+def build_ladder_queue(sets, lanes_strongest_first, attempts, hist):
+    """Every (set, target, lane, attempt_no) still owed, ordered so the whole ladder gets its
+    first try before any cell gets a second: (attempt_no, rung, target) then lanes strongest
+    first, interleaved across providers. A cell is done once it has attempt_no answers, or
+    three lane errors (a lane that cannot answer at all is not asked forever)."""
+    lanes_rr = interleave_by_provider(lanes_strongest_first)
+    targets = sorted(((rung_of(s, n) + (s, n, d)) for s, d, names in sets for n in names),
+                     key=lambda t: (t[1], sort_key(t[2], t[3])))        # rank, then the rung's own order
+    work = deque()
+    for a in range(1, attempts + 1):
+        for rung, rank, tset, name, tdir in targets:
+            for lane in lanes_rr:
+                h = hist[(tset, name, lane["backend"])]
+                if h["answered"] < a and h["errors"] < 3:
+                    work.append((tset, tdir, name, rung, rank, lane, a))
+    return work
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--ladder", action="store_true",
+                    help="the 24/7 mode: every lane × every target of --sets, --attempts tries per cell, owed cells only")
+    ap.add_argument("--sets", default="primer,mil,minif2f/test", help="ladder mode: target sets under targets/, in rung order")
+    ap.add_argument("--max-minutes", type=float, default=0, help="ladder mode: stop taking new cells after this wall clock (0 = no limit)")
+    ap.add_argument("--idle-minutes", type=float, default=20, help="ladder mode: give up after this long with nothing answerable")
+    ap.add_argument("--plan", action="store_true", help="ladder mode: print the queue and exit without a call")
     ap.add_argument("--targets", default="targets/minif2f/test")
     ap.add_argument("--only", default="", help="comma-separated target names (overrides --sample)")
     ap.add_argument("--unattempted", action="store_true",
@@ -125,7 +192,7 @@ def main():
     ap.add_argument("--order", choices=["asc", "desc"], default="asc")
     ap.add_argument("--stop-on-accept", action="store_true")
     ap.add_argument("--attempts", type=int, default=1)
-    ap.add_argument("--max-calls", type=int, default=300)
+    ap.add_argument("--max-calls", type=int, default=300, help="hard stop on calls (ladder mode: 5000 unless set)")
     ap.add_argument("--max-tokens", type=int, default=4000)
     ap.add_argument("--call-timeout", type=int, default=180)
     ap.add_argument("--lean-timeout", type=int, default=300)
@@ -139,7 +206,13 @@ def main():
     tdir = ROOT / args.targets
     target_set = str(Path(args.targets).relative_to("targets"))
     names = sorted(p.stem for p in tdir.glob("*.lean"))
-    if args.only:
+    sets = []
+    if args.ladder:
+        sets = load_sets(args.sets)
+        names = [n for _, _, ns in sets for n in ns]
+        if args.max_calls == 300:
+            args.max_calls = 5000
+    elif args.only:
         names = [n.strip() for n in args.only.split(",") if n.strip()]
     elif args.unattempted:
         answered = defaultdict(int)          # target → lanes that actually answered in sweep runs
@@ -172,14 +245,20 @@ def main():
         print(f"max {args.max_per_provider} lanes per provider: kept {len(known)}, dropped {dropped}")
     order = (known[::-1] if args.order == "desc" else known) + unknown
     mode = f"{'ladder' if args.stop_on_accept else 'sweep'}-{args.order}"
+    if args.ladder:
+        order = sorted(known, key=lambda l: (-l["rank"], l["backend"])) + unknown     # strongest first, untiered last
+        mode = f"ladder-x{args.attempts}"
     t_start = time.time()
     print(f"run {run_id}: {len(names)} targets × {len(order)} lanes × {args.attempts} attempts, "
           f"mode {mode}, cap {args.max_calls} calls")
     for l in order:
         print(f"  lane {l['backend']:40s} tier={l['tier']:8s} model={l['model']}")
 
-    ledger = ROOT / "ledger" / target_set / f"{run_id}.jsonl"
-    ledger.parent.mkdir(parents=True, exist_ok=True)
+    def ledger_for(tset):
+        path = ROOT / "ledger" / tset / f"{run_id}.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+    ledger = ledger_for(target_set)
     tmpdir = ROOT / ".lake" / "attempts"
     tmpdir.mkdir(parents=True, exist_ok=True)
     lock = threading.Lock()
@@ -207,15 +286,17 @@ def main():
 
     def record(row, prompt=None, reply=None, proof=None, candidate=None, lean_out=None):
         with lock:
-            with ledger.open("a") as fh:
+            with ledger_for(row["target_set"]).open("a") as fh:
                 fh.write(json.dumps(row) + "\n")
         saved = sparebrains_attempt({**row, "prompt": prompt, "response": reply, "proof": proof,
                                      "candidate": candidate, "lean_output": lean_out}) or {}
         return f"  {SITE}/attempts/{saved['id']}" if saved.get("id") else ""
 
-    def base_row(name, lane, attempt_no, statement_sha):
+    def base_row(name, lane, attempt_no, statement_sha, tset=None):
+        tset = tset or target_set
+        rung, rank = rung_of(tset, name)
         return {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "run_id": run_id,
-                "target_set": target_set, "target": name, "statement_sha": statement_sha,
+                "target_set": tset, "target": name, "statement_sha": statement_sha, "rung": rung, "rung_rank": rank,
                 "backend": lane["backend"], "provider": lane["provider"], "model": lane["model"],
                 "quality_tier": lane["tier"], "tier_rank": lane["rank"], "attempt_no": attempt_no, "mode": mode}
 
@@ -238,10 +319,11 @@ def main():
             print(f"[target done] {name}: {t['accepts']}/{t['done']} lanes proved it ({t['errors']} lane errors) — {who}",
                   flush=True)
 
-    def run_one(name, lane, attempt_no):
+    def run_one(name, lane, attempt_no, tset=None, tdir_=None):
         """One attempt: ask (honoring retry-after once), splice, judge, record. Returns the verdict,
         or 'defer' when the router benched the lane between the pre-check and the call."""
-        target_text = (tdir / f"{name}.lean").read_text()
+        tset, tdir_ = tset or target_set, tdir_ or tdir
+        target_text = (tdir_ / f"{name}.lean").read_text()
         prefix = target_text[:PROOF_SEP.search(target_text).end()]
         statement_sha = hashlib.sha256(prefix.encode()).hexdigest()
         prompt = ASK + target_text
@@ -294,7 +376,8 @@ def main():
             reason = RUNNER_PATH.sub("", reason)
             if verdict == "wellformed":
                 verdict, reason = "reject", "proof still contains sorry"
-        row = {**base_row(name, lane, attempt_no, statement_sha), "verdict": verdict, "reason": reason[:300],
+        row = {**base_row(name, lane, attempt_no, statement_sha, tset), "verdict": verdict, "reason": reason[:300],
+               "failure_kind": failure_kind(verdict, reason),
                "call_seconds": round(call_s, 1), "lean_seconds": round(lean_s, 1),
                "response_chars": len(reply or ""),
                "proof_sha": hashlib.sha256(proof.encode()).hexdigest() if proof else None}
@@ -317,7 +400,7 @@ def main():
         print(f"[{n}/{args.max_calls}] {name} ← {lane['backend']} ({lane['tier']}) → {verdict}  "
               f"call {call_s:.0f}s lean {lean_s:.1f}s  {reason[:110]}{link}", flush=True)
         if verdict == "accept":
-            vpath = ROOT / "verified" / target_set / name / f"{lane['backend']}.lean"
+            vpath = ROOT / "verified" / tset / name / f"{lane['backend']}.lean"
             vpath.parent.mkdir(parents=True, exist_ok=True)
             vpath.write_text(candidate)
             print("    ┌ kernel-accepted proof, verbatim:\n" +
@@ -334,7 +417,69 @@ def main():
                       f"{len(solved)}/{len(names)} targets solved so far", flush=True)
         return verdict
 
-    if args.stop_on_accept:                              # ladder: order matters, so sequential
+    remaining = 0
+    if args.ladder:                                      # 24/7: owed cells across every set, in rung order
+        hist = owed_history()
+        work = build_ladder_queue(sets, order, args.attempts, hist)
+        total_cells = sum(len(ns) for _, _, ns in sets) * len(order) * args.attempts
+        by_rung = defaultdict(int)
+        for item in work:
+            by_rung[item[3]] += 1
+        print(f"ladder: {len(work)} of {total_cells} cells still owed "
+              f"({sum(len(ns) for _, _, ns in sets)} targets × {len(order)} lanes × {args.attempts} tries); by rung: "
+              + ", ".join(f"{r} {by_rung[r]}" for r in RUNGS if by_rung[r]))
+        if args.plan:
+            for item in list(work)[:40]:
+                print(f"  {item[3]:8s} {item[2]:45s} {item[5]['backend']:40s} try {item[6]}")
+            print(f"  … {max(0, len(work) - 40)} more")
+            return 0
+        parked = []                                      # cells whose provider is parked for this job
+        deadline = t_start + args.max_minutes * 60 if args.max_minutes else None
+        idle = {"since": None}
+
+        def worker():
+            spins = 0
+            while True:
+                with lock:
+                    if not work or state["calls"] >= args.max_calls:
+                        return
+                    if deadline and time.time() > deadline:
+                        return
+                    item = work.popleft()
+                tset, tdir_, name, rung, rank, lane, a = item
+                if lane["provider"] in exhausted:
+                    parked.append(item)
+                    continue
+                if benched(lane["backend"]):
+                    with lock:
+                        work.append(item)                # someone else's turn; this lane stays owed
+                    spins += 1
+                    if spins >= max(1, len(work)):       # a full cycle with nothing answerable
+                        if idle["since"] is None:
+                            idle["since"] = time.time()
+                        if time.time() - idle["since"] > args.idle_minutes * 60:
+                            print("nothing answerable for the idle budget; leaving the rest for the next job", flush=True)
+                            return
+                        time.sleep(30)
+                        spins = 0
+                    continue
+                spins = 0
+                idle["since"] = None
+                v = run_one(name, lane, a, tset, tdir_)
+                if v == "exhausted":
+                    parked.append(item)
+                elif v == "defer":
+                    with lock:
+                        work.append(item)
+
+        threads = [threading.Thread(target=worker, daemon=True) for _ in range(max(1, args.jobs))]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+        remaining = len(work) + len(parked)
+        print(f"ladder: {remaining} cells left for the next job ({len(parked)} behind a parked provider)")
+    elif args.stop_on_accept:                            # ladder-asc/desc by hand: order matters, so sequential
         for name in names:
             for lane in order:
                 if state["calls"] >= args.max_calls or name in solved:
@@ -412,12 +557,29 @@ def main():
     print(f"done: {calls} calls, {accepts} accepts, {state['errors']} lane errors, {state['skipped']} skipped "
           f"(benched), {state['waits']} rate-limit waits honored, {len(solved)}/{len(names)} targets solved, "
           f"mode {mode}, run {run_id}")
-    print("\nper target:")
-    for n in names:
-        t = per_target[n]
-        first = solved.get(n)
-        print(f"  {n:45s} {t['accepts']:3d}/{t['done']:3d} lanes  "
-              f"{'first: ' + first['backend'] + ' (' + first['tier'] + ')' if first else 'unsolved so far'}")
+    if args.ladder:
+        rung_tally = defaultdict(lambda: {"answered": 0, "accepts": 0, "targets": set(), "solved": set()})
+        for tset, _, ns in sets:
+            for n in ns:
+                r, _ = rung_of(tset, n)
+                rung_tally[r]["targets"].add(n)
+                if n in solved:
+                    rung_tally[r]["solved"].add(n)
+                t = per_target[n]
+                rung_tally[r]["answered"] += t["done"] - t["errors"]
+                rung_tally[r]["accepts"] += t["accepts"]
+        print("\nper rung (this job):")
+        for r in RUNGS:
+            rt = rung_tally.get(r)
+            if rt and rt["answered"]:
+                print(f"  {r:8s} {rt['accepts']:4d}/{rt['answered']:4d} answered, {len(rt['solved'])}/{len(rt['targets'])} targets proved by someone")
+    else:
+        print("\nper target:")
+        for n in names:
+            t = per_target[n]
+            first = solved.get(n)
+            print(f"  {n:45s} {t['accepts']:3d}/{t['done']:3d} lanes  "
+                  f"{'first: ' + first['backend'] + ' (' + first['tier'] + ')' if first else 'unsolved so far'}")
     ranked = sorted(per_lane.items(), key=lambda kv: (-kv[1]["accepts"], -kv[1]["attempts"]))
     print("\nper lane:")
     for b, pl in ranked:
@@ -434,7 +596,7 @@ def main():
     out = os.environ.get("GITHUB_OUTPUT")
     if out:
         with open(out, "a") as fh:
-            fh.write(f"calls={calls}\naccepts={accepts}\nlanes={len(order)}\ntargets={len(names)}\nmode={mode}\n")
+            fh.write(f"calls={calls}\naccepts={accepts}\nlanes={len(order)}\ntargets={len(names)}\nmode={mode}\nremaining={remaining}\n")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as fh:
@@ -442,10 +604,17 @@ def main():
                      f"{state['errors']} lane errors, {state['skipped']} skipped as benched, "
                      f"{state['waits']} rate-limit waits, {len(solved)}/{len(names)} targets solved, $0 · "
                      f"[every transcript]({SITE}/runs/{run_id})\n\n")
-            fh.write("| target | proved by (lanes) | of | first solver | tier |\n|---|---|---|---|---|\n")
-            for n in names:
-                t, l = per_target[n], solved.get(n)
-                fh.write(f"| `{n}` | {t['accepts']} | {t['done']} | {l['backend'] if l else '—'} | {l['tier'] if l else '—'} |\n")
+            if args.ladder:
+                fh.write(f"{remaining} cells left for the next job.\n\n| rung | verified | answered | targets proved by someone |\n|---|---|---|---|\n")
+                for r in RUNGS:
+                    rt = rung_tally.get(r)
+                    if rt and rt["answered"]:
+                        fh.write(f"| {r} | {rt['accepts']} | {rt['answered']} | {len(rt['solved'])} / {len(rt['targets'])} |\n")
+            else:
+                fh.write("| target | proved by (lanes) | of | first solver | tier |\n|---|---|---|---|---|\n")
+                for n in names:
+                    t, l = per_target[n], solved.get(n)
+                    fh.write(f"| `{n}` | {t['accepts']} | {t['done']} | {l['backend'] if l else '—'} | {l['tier'] if l else '—'} |\n")
             fh.write("\n| lane | tier | verified | answered | per 1,000 | errors |\n|---|---|---|---|---|---|\n")
             for b, pl in ranked:
                 if pl["attempts"]:
@@ -454,7 +623,7 @@ def main():
                              f"{round(1000 * pl['accepts'] / answered) if answered else 0} | {pl['errors']} |\n")
             if solved:
                 fh.write("\n<details><summary>every kernel-accepted proof in this run</summary>\n\n")
-                for vf in sorted((ROOT / "verified" / target_set).glob("*/*.lean")):
+                for vf in sorted((ROOT / "verified").glob("**/*.lean")):
                     if vf.stat().st_mtime >= t_start:
                         fh.write(f"**{vf.parent.name} ← {vf.stem}**\n\n```lean\n{vf.read_text()}```\n\n")
                 fh.write("</details>\n")

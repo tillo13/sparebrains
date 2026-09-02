@@ -1,15 +1,20 @@
 # Step 3 of PLAN.md §2: the loop. The free pool proposes, the kernel disposes, the
-# ledger remembers. Manual trigger with knobs, plus the nightly schedule (step 4):
-# two sweep chunks a night, Pacific, over whatever targets no sweep has touched yet,
-# so the whole exam paper gets covered without starving the daytime callers.
+# ledger remembers. Since 2026-09-02 it runs around the clock: each job works the
+# ladder (tools/ladder.py) for its wall-clock budget, commits what it learned, and
+# dispatches the next job while work remains; the two-hourly schedule is the backstop
+# that restarts the chain if a job dies. The pool caps are per UTC day, so a job that
+# finds nothing answerable exits and the next one picks up after the reset.
 name: attempt
 
 on:
   schedule:
-    - cron: "0 22,3 * * *"
-      timezone: "America/Los_Angeles"
+    - cron: "0 */2 * * *"
   workflow_dispatch:
     inputs:
+      ladder:
+        description: "run the 24/7 ladder (every lane × every target, owed cells only); off = the knobs below"
+        type: boolean
+        default: true
       sample:
         description: "how many targets (seeded sample)"
         default: "5"
@@ -54,6 +59,7 @@ on:
 
 permissions:
   contents: write
+  actions: write        # a finishing job dispatches the next one
 
 concurrency:
   group: attempt
@@ -82,10 +88,9 @@ jobs:
           KUMORI_API_KEY: ${{ secrets.KUMORI_API_KEY }}
           SCHEDULED: ${{ github.event_name == 'schedule' }}
         run: |
-          if [ "$SCHEDULED" = "true" ]; then
-            # nightly chunk: sweep, strong lanes, next 30 unswept targets
-            python3 tools/attempt.py --sample 30 --unattempted --order asc --min-tier medium \
-              --skip-benched --jobs 2 --max-calls 1400 --max-per-provider 8
+          if [ "$SCHEDULED" = "true" ] || [ "${{ inputs.ladder }}" = "true" ]; then
+            # the ladder: every lane, every set, 3 tries per cell, until the wall-clock budget
+            python3 tools/attempt.py --ladder --attempts 3 --jobs 2 --max-minutes 320
           else
             python3 tools/attempt.py \
               --sample "${{ inputs.sample }}" --seed "${{ inputs.seed }}" \
@@ -107,9 +112,15 @@ jobs:
           git add -A -- ledger verified
           if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi
           git commit -q -F - <<MSG
-          attempt run ${{ github.run_id }}: ${{ steps.run.outputs.calls }} calls, ${{ steps.run.outputs.accepts }} accepts, ${{ steps.run.outputs.mode }}
+          attempt run ${{ github.run_id }}: ${{ steps.run.outputs.calls }} calls, ${{ steps.run.outputs.accepts }} accepts, ${{ steps.run.outputs.mode }}, ${{ steps.run.outputs.remaining }} cells left
 
           Generated-by: kumori free-LLM pool (${{ steps.run.outputs.lanes }} lanes) via tools/attempt.py; verifier Lean v4.33.1 + mathlib v4.33.1 (tools/check.py); cost \$0
           MSG
           git pull -q --rebase origin main
           git push -q origin HEAD:main
+
+      - name: chain the next job
+        if: always() && steps.run.outputs.remaining != '' && steps.run.outputs.remaining != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run attempt.yml --ref main

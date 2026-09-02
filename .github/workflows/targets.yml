@@ -1,5 +1,7 @@
 # Step 2 of PLAN.md §2: every target statement must type-check under this repo's
 # mathlib pin with `sorry` as its only hole. A target that fails here is not a target.
+# Sets that ship reference proofs (targets/<set>/reference/) must also have every
+# reference ACCEPTED by the kernel: a rung nobody clears is then provably clearable.
 name: targets
 
 on:
@@ -27,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        set: [minif2f/test]
+        set: [minif2f/test, primer]
     steps:
       - uses: actions/checkout@v7
 
@@ -40,3 +42,7 @@ jobs:
 
       - name: type-check ${{ matrix.set }}
         run: python3 tools/check.py --expect wellformed --jobs 2 targets/${{ matrix.set }}/*.lean
+
+      - name: reference proofs of ${{ matrix.set }} accepted by the kernel
+        if: hashFiles(format('targets/{0}/reference/*.lean', matrix.set)) != ''
+        run: python3 tools/check.py --expect accept --jobs 2 targets/${{ matrix.set }}/reference/*.lean
