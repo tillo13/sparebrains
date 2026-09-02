@@ -225,7 +225,10 @@ there is no row where the pool is its own judge.
       Internet Archive; Andy picks).
 - [ ] Success metric v2: verified count, upstreamed count, scoreboard entries.
 - [ ] mathlib AI-contribution policy; Metaculus season rules. Both unverified.
-- [ ] Copilot budget → $0 on the org (Andy click).
+- [x] ~~Copilot budget → $0 on the org (Andy click).~~ Retired 2026-09-02: GitHub removed $0 Copilot
+      premium-request budgets for team and enterprise accounts on 2025-12-02 (changelog 2025-09-17). The
+      rule is simpler: never subscribe the org to Copilot Business; a free org with public repos has no
+      billable surface. Deep-search receipt in the session; Copilot adds nothing this project lacks.
 - [ ] The 09-01 mistral spike (§1): what drove 1,723 calls against a 52/day norm.
 - [ ] kumori cleanup, not this repo: the Tier-0 daily pacing 503 says "spent this month's free token
       budget" with a retry-after to next month; it is a one-day rest (`DECISIONS.md` 2026-09-02).
