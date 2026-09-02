@@ -444,12 +444,22 @@ def main():
         deadline = t_start + args.max_minutes * 60 if args.max_minutes else None
         idle = {"since": None}
 
+        inflight = {}                                    # thread → the cell it is asking about right now
+
         def heartbeat(status="running"):
             with lock:
                 owed = len(work) + len(parked)
+                working = list(inflight.values())
             sparebrains_heartbeat({"run_id": run_id, "mode": mode, "status": status, "cells_total": total_cells,
                                    "cells_owed": owed, "calls": state["calls"], "accepts": state["accepts"],
-                                   "lanes": len(order), "targets": len(names)})
+                                   "lanes": len(order), "targets": len(names), "working_on": working})
+
+        def pulse():
+            """The site's "right now" box: only the cells in flight and the running counts."""
+            with lock:
+                working = list(inflight.values())
+            sparebrains_heartbeat({"run_id": run_id, "mode": mode, "status": "running", "working_on": working,
+                                   "calls": state["calls"], "accepts": state["accepts"]})
         heartbeat()
         state["heartbeat"] = heartbeat
 
@@ -481,7 +491,16 @@ def main():
                     continue
                 spins = 0
                 idle["since"] = None
-                v = run_one(name, lane, a, tset, tdir_)
+                me = threading.get_ident()
+                with lock:
+                    inflight[me] = {"target_set": tset, "target": name, "rung": rung, "backend": lane["backend"],
+                                    "tier": lane["tier"], "attempt_no": a, "since": round(time.time(), 1)}
+                pulse()
+                try:
+                    v = run_one(name, lane, a, tset, tdir_)
+                finally:
+                    with lock:
+                        inflight.pop(me, None)
                 if v == "exhausted":
                     parked.append(item)
                 elif v == "defer":
