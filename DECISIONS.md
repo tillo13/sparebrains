@@ -50,6 +50,17 @@ Everything NOT here is open and lives in `PLAN.md` §6.
   per check with `import Mathlib`, 6.6 GB peak RSS, 6.5 GB mathlib cache, $0. Two accepts
   accepted; a `sorry`, a smuggled `axiom`, and a false statement all refused for the stated
   reasons. Numbers in `PLAN.md` §2. Steps 2–4 remain gated.
+- **Step 2 is green: the target set is google-deepmind/miniF2F, Test split, 244 statements.**
+  Chosen over yangky11/miniF2F-lean4 (unmaintained, original misformalizations) and
+  miniF2F-v2 (jsonl only, no Lean project). All 244 type-check under mathlib v4.33.1 with
+  `sorryAx` as the sole hole; zero edits needed. One file per theorem in
+  `targets/minif2f/test/`, Apache-2.0 with license and change list in `targets/minif2f/README.md`.
+  Valid split excluded: 204 of its statements use `answer(...)` from formal-conjectures.
+  `tools/check.py --expect wellformed` is the gate; run 33578810121.
+- **The judge reads `sorryAx` from the kernel's axiom audit, never the warning text.** Lean
+  v4.33 prints "declaration uses `sorry`" with backticks; a text match on the old quoting let a
+  `sorry` proof through on run 33578565414. The reject suite caught it. Now the only sorry
+  signal is `#print axioms`.
 
 ## 2026-09-01
 

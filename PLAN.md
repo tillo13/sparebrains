@@ -88,6 +88,14 @@ propose→check→ledger loop in the same job, (4) nightly schedule for a week.
 Read: ~5 s per check means a few hundred attempts per job without a resident Lean server.
 The 6.6 GB peak rules out the private-repo 8 GB runner; public was the right call.
 
+**Step 2 measured (run 33578810121, 2026-09-02 01:17 UTC):** `targets/minif2f/test/`, 244
+statements from google-deepmind/miniF2F `f0a20e1` (their pin mathlib v4.27.0), all 244
+well-formed under mathlib v4.33.1 with `sorryAx` as the only hole. 3.4–3.8 s per statement,
+two in parallel, 9 min for the split, 6.6 GB peak. Zero statements needed editing. Valid split
+not imported (204 statements use formal-conjectures' `answer(...)`). Also found on the way: the
+judge's first version keyed on Lean's `sorry` warning text, which v4.33 quotes differently; it
+now reads `sorryAx` from `#print axioms`, and the reject suite is what caught it.
+
 ## 3. Lanes, and the substrate each one fits
 
 | lane | verifier | substrate | status |
@@ -137,7 +145,8 @@ there is no row where the pool is its own judge.
 
 ## 6. Open (survives this rewrite)
 
-- [ ] The 20–50 targets for §2: source, format, how "already in mathlib" is excluded.
+- [x] ~~The 20–50 targets for §2~~ `targets/minif2f/test/` (244, all well-formed). The loop
+      picks a fixed sample; "already in mathlib" does not apply to competition statements.
 - [x] ~~Where the resident Lean checker runs~~ GitHub Actions (`DECISIONS.md` 2026-09-01 evening). Was: ROG (CPU-only, coexists with renders) or a Cloud
       Run worker (the pilgrims burn/ward pattern). Needs a real RAM and olean-cache answer.
 - [x] ~~Prover model for Arm B~~ moot, Arm B dropped. Was: verify current releases and benchmarks; VRAM fit on 16 GB.
@@ -151,8 +160,8 @@ there is no row where the pool is its own judge.
 - [ ] The 09-01 mistral spike (§1): what drove 1,723 calls against a 52/day norm.
 - [ ] kumori cleanup, not this repo: GitHub Models retired 2026-07-30; four router lanes still
       point at it (`kumori_free_llm/config.yaml` 247–262). §1 pool numbers exclude them already.
-- [ ] Which Lean 4 port of miniF2F is maintained and pins mathlib v4.33.1 (step 2; needs a
-      `/deep-search`).
+- [x] ~~Which Lean 4 port of miniF2F~~ google-deepmind/miniF2F (Apache-2.0, corrected, the
+      AlphaProof eval set); yangky11's port is unmaintained and carries the original errors.
 - [ ] Subdomain: `sparebrains.` vs `spare.` vs `good.kumori.ai`. Storefront item, after the gate.
 
 ## 7. After the gate (outline only; each step is its own green light)
