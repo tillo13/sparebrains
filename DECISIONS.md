@@ -5,6 +5,17 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **Repair tries: the second and third try of a cell talk to the checker.** Andy, asked what he
+  would want next, "ok do it". A cell's first try is *cold* (the file and nothing else). When it
+  was rejected, tries two and three are *repair* tries: the lane is shown its own proof and the
+  kernel's output (or told its reply had no code block) and asked to fix it; after an accepted
+  try the next try stays cold, so consistency is still measured. What a repair try is told comes
+  from the loop's own memory within a job, else from `sparebrains_attempts` through
+  `/api/v1/sparebrains/previous`. Rows carry `try_mode` and `prev_id`; the curve draws first
+  tries dashed beside all tries once repair rows exist, so the gap is what feedback is worth.
+  Built before any second try exists (pass one of the ladder runs every first try first), so the
+  first pass stays a clean cold measurement. Harness: only the rejected lane got repair prompts,
+  the accepted lane's second try stayed cold, every repair row points at its previous attempt.
 - **Receipts for the bottom rungs (targets runs 33646682214 and 33647799296).** Primer: 74 of 74
   statements well-formed, 74 of 74 reference proofs accepted by the kernel (one proof rewritten
   after the first run: `Nat.mul_eq_one.mp` is not a name at mathlib v4.33.1). Mathematics in Lean:

@@ -254,7 +254,7 @@ three tries, 24/7); kept for the record.
 **Phase B: raise the ceiling, for free**
 6. ~~Several tries per lane~~ three tries per cell, done 2026-09-02 (`--ladder`); higher temperature and
    pass@k beyond 3 still open.
-7. Lean's error fed back for a second attempt (in §2 from day one; not yet in the ladder).
+7. ~~Lean's error fed back for a second attempt~~ done 2026-09-02 (repair tries, `DECISIONS.md`).
 8. ~~Skip lanes the router has already benched~~ done: benched cells stay owed; statement identity by construction.
 
 **Phase C: open problems**

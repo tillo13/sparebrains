@@ -34,6 +34,11 @@ try:                                                                  # the cloc
 except ImportError:
     def sparebrains_heartbeat(row):
         return None
+try:                                                                  # what a repair try is told; older vendored clients lack it
+    from utilities.kumori_api_client import sparebrains_previous
+except ImportError:
+    def sparebrains_previous(target_set, target, backend):
+        return None
 
 TIER_RANK = {"tiny": 0, "low": 1, "medium": 2, "high": 3, "frontier": 4}
 PROOF_SEP = re.compile(r":=\s*by\b")
@@ -45,6 +50,10 @@ SYSTEM = ("You are an expert in Lean 4 and Mathlib. You complete formal proofs. 
           "You answer with code only.")
 EXAMPLE = ("import Mathlib\n\n/-- A demonstration, not a target. -/\n"
            "theorem demo_mul_two (n : ℕ) : n * 2 = n + n := by\n  ring\n")
+REPAIR = ("You already tried this Lean 4 file (Lean v4.33.1, mathlib v4.33.1, `import Mathlib` is already "
+          "there) and the kernel rejected your proof. Fix it. Replace only the `sorry`; keep the theorem statement "
+          "byte-for-byte; no `sorry`, `admit`, or `native_decide`; no new axioms; Lean 4 syntax, not Lean 3. "
+          "Answer with the ENTIRE file inside one ```lean fence and nothing else.\n\n")
 ASK = ("Complete the proof in this Lean 4 file (Lean v4.33.1, mathlib v4.33.1, `import Mathlib` is "
        "already there). Replace only the `sorry` with a complete proof.\n"
        "Rules: keep the theorem statement byte-for-byte; no `sorry`, `admit`, or `native_decide`; "
@@ -124,6 +133,20 @@ def extract_proof(reply, name):
     if indent == 0:
         lines = ["  " + l if l.strip() else l for l in lines]
     return "\n".join(lines).rstrip() + "\n"
+
+
+def repair_prompt(target_text, prev):
+    """Tries two and three of a cell whose earlier try was rejected: the lane sees its own
+    proof and the kernel's exact complaint. A reply with no code block gets told that instead."""
+    if prev.get("failure_kind") == "no_fence" or not prev.get("proof"):
+        head = (prev.get("response_head") or "").strip()
+        note = ("Your previous reply contained no ```lean code block, so nothing could be checked. It began:\n\n"
+                + head[:600] + ("\n…" if len(head) > 600 else "") + "\n\n")
+    else:
+        out = (prev.get("lean_output") or prev.get("reason") or "").strip()
+        note = ("Your previous proof was:\n\n```lean\n" + prev["proof"].rstrip() + "\n```\n\nLean said:\n\n```\n"
+                + out[:2000] + ("\n…" if len(out) > 2000 else "") + "\n```\n\n")
+    return REPAIR + note + "The file to complete:\n\n" + target_text
 
 
 def load_sets(spec):
@@ -295,7 +318,7 @@ def main():
                 fh.write(json.dumps(row) + "\n")
         saved = sparebrains_attempt({**row, "prompt": prompt, "response": reply, "proof": proof,
                                      "candidate": candidate, "lean_output": lean_out}) or {}
-        return f"  {SITE}/attempts/{saved['id']}" if saved.get("id") else ""
+        return (f"  {SITE}/attempts/{saved['id']}" if saved.get("id") else ""), saved.get("id")
 
     def base_row(name, lane, attempt_no, statement_sha, tset=None):
         tset = tset or target_set
@@ -324,14 +347,18 @@ def main():
             print(f"[target done] {name}: {t['accepts']}/{t['done']} lanes proved it ({t['errors']} lane errors) — {who}",
                   flush=True)
 
-    def run_one(name, lane, attempt_no, tset=None, tdir_=None):
+    memory = {}                                          # (set, target, backend) → what this job learned, for repair tries
+
+    def run_one(name, lane, attempt_no, tset=None, tdir_=None, prev=None):
         """One attempt: ask (honoring retry-after once), splice, judge, record. Returns the verdict,
-        or 'defer' when the router benched the lane between the pre-check and the call."""
+        or 'defer' when the router benched the lane between the pre-check and the call.
+        With `prev` (the cell's last rejected attempt) the ask is a repair try."""
         tset, tdir_ = tset or target_set, tdir_ or tdir
         target_text = (tdir_ / f"{name}.lean").read_text()
         prefix = target_text[:PROOF_SEP.search(target_text).end()]
         statement_sha = hashlib.sha256(prefix.encode()).hexdigest()
-        prompt = ASK + target_text
+        repair = bool(prev) and prev.get("verdict") == "reject"
+        prompt = repair_prompt(target_text, prev) if repair else ASK + target_text
         t0 = time.monotonic()
         reply, err = "", None
         with provider_lock[lane["provider"]]:
@@ -383,6 +410,7 @@ def main():
                 verdict, reason = "reject", "proof still contains sorry"
         row = {**base_row(name, lane, attempt_no, statement_sha, tset), "verdict": verdict, "reason": reason[:300],
                "failure_kind": failure_kind(verdict, reason),
+               "try_mode": "repair" if repair else "cold", "prev_id": prev.get("id") if repair else None,
                "call_seconds": round(call_s, 1), "lean_seconds": round(lean_s, 1),
                "response_chars": len(reply or ""),
                "proof_sha": hashlib.sha256(proof.encode()).hexdigest() if proof else None}
@@ -401,9 +429,14 @@ def main():
                 t["errors"] += 1
                 pl["errors"] += 1
             target_done = (not args.stop_on_accept) and t["done"] >= planned_per_target
-        link = record(row, prompt, reply, proof, candidate, lean_out)
-        print(f"[{n}/{args.max_calls}] {name} ← {lane['backend']} ({lane['tier']}) → {verdict}  "
-              f"call {call_s:.0f}s lean {lean_s:.1f}s  {reason[:110]}{link}", flush=True)
+        link, saved_id = record(row, prompt, reply, proof, candidate, lean_out)
+        if verdict in ("accept", "reject"):
+            with lock:
+                memory[(tset, name, lane["backend"])] = {"id": saved_id, "verdict": verdict, "failure_kind": row["failure_kind"],
+                                                         "reason": reason, "proof": proof, "lean_output": lean_out,
+                                                         "response_head": (reply or "")[:800]}
+        print(f"[{n}/{args.max_calls}] {name} ← {lane['backend']} ({lane['tier']}) → {verdict}"
+              f"{' (repair)' if repair else ''}  call {call_s:.0f}s lean {lean_s:.1f}s  {reason[:110]}{link}", flush=True)
         if verdict == "accept":
             vpath = ROOT / "verified" / tset / name / f"{lane['backend']}.lean"
             vpath.parent.mkdir(parents=True, exist_ok=True)
@@ -496,8 +529,15 @@ def main():
                     inflight[me] = {"target_set": tset, "target": name, "rung": rung, "backend": lane["backend"],
                                     "tier": lane["tier"], "attempt_no": a, "since": round(time.time(), 1)}
                 pulse()
+                prev = None
+                if a > 1:                                # a repair try needs the cell's last answer
+                    with lock:
+                        prev = memory.get((tset, name, lane["backend"]))
+                    if prev is None:
+                        got = sparebrains_previous(tset, name, lane["backend"]) or {}
+                        prev = got if got.get("found") else None
                 try:
-                    v = run_one(name, lane, a, tset, tdir_)
+                    v = run_one(name, lane, a, tset, tdir_, prev)
                 finally:
                     with lock:
                         inflight.pop(me, None)
