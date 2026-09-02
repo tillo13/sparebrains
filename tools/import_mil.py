@@ -42,9 +42,11 @@ FILES = {
 }
 
 TOKEN = re.compile(r"[^\W\d][\w'!?]*")
+DOTTED = re.compile(r"\.([^\W\d][\w'!?]*)")     # `x.name`: field access, resolved through x's type
 DECL = re.compile(r"^(?:@\[[^\]]*\]\s*)?(?:noncomputable\s+)?(?:private\s+|protected\s+)?"
-                  r"(?:def|theorem|lemma|abbrev|structure|class|instance|inductive|notation|axiom|opaque)"
+                  r"(def|theorem|lemma|abbrev|structure|class|instance|inductive|notation|axiom|opaque)"
                   r"\s+([^\s(:{\[]+)")
+TYPE_DECLS = {"structure", "class", "inductive"}
 BLOCK = re.compile(r"^(example|theorem|lemma)\b\s*(?:([^\s(:{\[]+))?")
 PROOF_SEP = re.compile(r":=\s*by\b")
 OPEN, CLOSE = "({[⦃", ")}]⦄"
@@ -177,9 +179,25 @@ def section_title(fname):
 
 def process_file(chapter, sec_no, fname, src, ctx):
     """Walk one solution file; append emitted/skipped records to ctx. Returns block count."""
-    scopes = [{"opens": [], "vars": []}]
-    declared = set()          # names declared earlier in this file (full and last component)
+    scopes = [{"opens": [], "vars": [], "ns": None}]
+    # names declared earlier in this file. `bare`: reachable as a plain identifier. `dotted`:
+    # reachable as `x.name`, i.e. declared with a dotted name or inside the namespace of a
+    # local type (`namespace MyNat` / `def add` -> `x.add`). A file-local `C05S03.two_le`
+    # is not what `prime_p.two_le` means, so it does not go in `dotted`.
+    declared = {"bare": set(), "dotted": set()}
+    local_types = set()
     idx = 0
+
+    def declare(kind, full):
+        full = full.removeprefix("_root_.")
+        last = full.split(".")[-1]
+        if kind in TYPE_DECLS:
+            local_types.add(last)
+        declared["bare"].add(full)
+        declared["bare"].add(last)
+        ns = [s["ns"] for s in scopes if s["ns"]]
+        if "." in full or (ns and ns[-1] in local_types):
+            declared["dotted"].add(last)
     prefix = f"mil_c{chapter:02d}_s{sec_no:02d}"
     doc = (f"/-- Mathematics in Lean, Chapter {chapter} §{sec_no} ({section_title(fname)}), "
            f"exercise {{k}}. Avigad & Massot, Apache-2.0, commit {SHA[:7]}. -/")
@@ -189,7 +207,7 @@ def process_file(chapter, sec_no, fname, src, ctx):
         if not bm:
             word = first.split()[0] if first else ""
             if word in ("section", "namespace") or first == "noncomputable section":
-                scopes.append({"opens": [], "vars": []})
+                scopes.append({"opens": [], "vars": [], "ns": first.split()[1] if word == "namespace" else None})
             elif word == "end":
                 scopes.pop()
             elif word == "open":
@@ -198,7 +216,7 @@ def process_file(chapter, sec_no, fname, src, ctx):
                 scopes[-1]["vars"].extend(binder_groups(text[len("variable"):].replace("\n", " "))[0])
             dm = DECL.match(text)
             if dm:
-                declared |= {dm.group(1), dm.group(1).split(".")[-1]}
+                declare(dm.group(1), dm.group(2))
             continue
 
         idx += 1
@@ -206,11 +224,14 @@ def process_file(chapter, sec_no, fname, src, ctx):
         name = f"{prefix}_ex{idx:02d}"
         label = f"c{chapter:02d} s{sec_no:02d} ex{idx:02d}" + (f" `{orig_name}`" if orig_name else "")
         own_tokens = set(TOKEN.findall(orig_name)) if orig_name else set()
-        declared_after = {orig_name.removeprefix("_root_."), orig_name.split(".")[-1]} if orig_name else set()
+
+        def done():
+            if orig_name:
+                declare(bm.group(1), orig_name)
 
         def skip(reason):
             ctx["skipped"].append((label, reason))
-            declared.update(declared_after)
+            done()
 
         sep = PROOF_SEP.search(text)
         if not sep or sep.start() != text.find(":="):
@@ -225,7 +246,10 @@ def process_file(chapter, sec_no, fname, src, ctx):
             type_text = ""
         if not type_text.startswith(":"):
             skip("could not parse the header"); continue
-        local = sorted((set(TOKEN.findall(tail + " " + rest)) - own_tokens) & declared)
+        body = tail + " " + rest
+        dotted = set(DOTTED.findall(body))
+        local = sorted(((set(TOKEN.findall(body)) - dotted - own_tokens) & declared["bare"])
+                       | ((dotted - own_tokens) & declared["dotted"]))
         if local:
             skip(f"references local declaration `{local[0]}`"); continue
 
@@ -244,7 +268,7 @@ def process_file(chapter, sec_no, fname, src, ctx):
         if key in ctx["seen"]:
             skip(f"duplicate of `{ctx['seen'][key]}`"); continue
         if ctx["per_chapter"][chapter] >= PER_CHAPTER:
-            ctx["beyond"].append(label); declared.update(declared_after); continue
+            ctx["beyond"].append(label); done(); continue
 
         opens = []
         for s in scopes:
@@ -257,7 +281,7 @@ def process_file(chapter, sec_no, fname, src, ctx):
         ctx["seen"][key] = name
         ctx["per_chapter"][chapter] += 1
         ctx["emitted"].append(name)
-        declared.update(declared_after)
+        done()
     return idx
 
 

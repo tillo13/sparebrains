@@ -90,7 +90,8 @@ jobs:
         run: |
           if [ "$SCHEDULED" = "true" ] || [ "${{ inputs.ladder }}" = "true" ]; then
             # the ladder: every lane, every set, 3 tries per cell, until the wall-clock budget
-            python3 tools/attempt.py --ladder --attempts 3 --jobs 2 --max-minutes 320
+            # sets: mil joins once the targets workflow has kernel-checked its statements and reference proofs
+            python3 tools/attempt.py --ladder --sets primer,minif2f/test --attempts 3 --jobs 2 --max-minutes 320
           else
             python3 tools/attempt.py \
               --sample "${{ inputs.sample }}" --seed "${{ inputs.seed }}" \

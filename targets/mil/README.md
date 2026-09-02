@@ -39,9 +39,9 @@ a target.
 | 2 | 52 | 15 | 18 | 19 |
 | 3 | 65 | 15 | 30 | 20 |
 | 4 | 45 | 15 | 13 | 17 |
-| 5 | 38 | 13 | 25 | 0 |
+| 5 | 38 | 14 | 24 | 0 |
 | 6 | 12 | 1 | 11 | 0 |
-| total | 212 | 59 | 97 | 56 |
+| total | 212 | 60 | 96 | 56 |
 
 ## Skipped blocks, by reason
 A block is skipped when it is not an `example`/`theorem` with a `:= by` proof, references a
@@ -49,7 +49,7 @@ A block is skipped when it is not an `example`/`theorem` with a `:= by` proof, r
 included), needs a section variable its statement does not mention, re-binds a section
 variable name inside the statement, repeats an earlier statement, or uses `sorry`.
 
-### references local declaration `…` (70)
+### references local declaration `…` (69)
 - c02 s02 ex03 `add_right_cancel`: references local declaration `add_neg_cancel_right`
 - c02 s02 ex04 `zero_mul`: references local declaration `add_left_cancel`
 - c02 s02 ex06 `eq_neg_of_add_eq_zero`: references local declaration `neg_eq_of_add_eq_zero`
@@ -106,7 +106,6 @@ variable name inside the statement, repeats an earlier statement, or uses `sorry
 - c05 s02 ex10 `mul_comm`: references local declaration `MyNat`
 - c05 s03 ex02 `exists_prime_factor`: references local declaration `two_le`
 - c05 s03 ex03 `primes_infinite`: references local declaration `exists_prime_factor`
-- c05 s03 ex08 `_root_.Nat.Prime.eq_of_dvd_of_prime`: references local declaration `two_le`
 - c05 s03 ex09 `mem_of_dvd_prod_primes`: references local declaration `eq_of_dvd_of_prime`
 - c05 s03 ex10 `primes_infinite'`: references local declaration `exists_prime_factor`
 - c05 s03 ex14 `two_le_of_mod_4_eq_3`: references local declaration `two_le`
