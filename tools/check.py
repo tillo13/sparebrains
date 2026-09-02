@@ -3,14 +3,19 @@ survives, and every theorem in it depends on nothing outside the axiom allowlist
 
     python3 tools/check.py --expect accept checks/accept/*.lean
     python3 tools/check.py --expect reject checks/reject/*.lean
+    python3 tools/check.py --expect wellformed --jobs 2 targets/minif2f/test/*.lean
 
-Exit 0 iff every file's verdict matches --expect. Runs `lake env lean` per file
-(needs the lake workspace built and the mathlib cache present).
+`wellformed` is the target-set gate: the statement type-checks and its only hole is
+`sorryAx`. Exit 0 iff every file's verdict matches --expect. Runs `lake env lean` per
+file (needs the lake workspace built and the mathlib cache present). The judge sets
+`autoImplicit=false` itself, so an attempt cannot turn a typo into a free variable.
 """
 import argparse, json, os, re, resource, subprocess, sys, tempfile, time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ALLOWED_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
+LEAN_FLAGS = ["-DautoImplicit=false", "-DrelaxedAutoImplicit=false"]
 DECL_RE = re.compile(r"^\s*(?:theorem|lemma)\s+([^\s:({\[]+)", re.M)
 AXIOMS_RE = re.compile(r"'([^']+)' depends on axioms: \[([^\]]*)\]")
 NO_AXIOMS_RE = re.compile(r"'([^']+)' does not depend on any axioms")
@@ -26,7 +31,7 @@ def judge(path, timeout):
         tmp.write(probe)
     t0 = time.monotonic()
     try:
-        run = subprocess.run(["lake", "env", "lean", tmp.name], capture_output=True,
+        run = subprocess.run(["lake", "env", "lean", *LEAN_FLAGS, tmp.name], capture_output=True,
                              text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         os.unlink(tmp.name)
@@ -37,32 +42,36 @@ def judge(path, timeout):
     if run.returncode != 0:
         first_error = next((l for l in out.splitlines() if "error" in l), out[:200])
         return "reject", f"lean exit {run.returncode}: {first_error.strip()}", secs, out
-    if "declaration uses 'sorry'" in out:
-        return "reject", "declaration uses sorry", secs, out
+    holes = "declaration uses 'sorry'" in out
     audited = {n for n, _ in AXIOMS_RE.findall(out)} | set(NO_AXIOMS_RE.findall(out))
     missing = set(names) - audited
     if missing:
         return "reject", f"no axiom report for {sorted(missing)}", secs, out
     for name, axioms in AXIOMS_RE.findall(out):
         used = {a.strip() for a in axioms.split(",") if a.strip()}
-        bad = used - ALLOWED_AXIOMS
+        bad = used - ALLOWED_AXIOMS - {"sorryAx"}
         if bad:
             return "reject", f"{name} depends on disallowed axioms {sorted(bad)}", secs, out
+    if holes:
+        return "wellformed", f"statement type-checks, proof is sorry {names}", secs, out
     return "accept", f"kernel accepted {names}", secs, out
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("files", nargs="+")
-    ap.add_argument("--expect", choices=["accept", "reject"], required=True)
+    ap.add_argument("--expect", choices=["accept", "reject", "wellformed"], required=True)
     ap.add_argument("--timeout", type=int, default=600)
+    ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
     rows, ok = [], True
-    for f in args.files:
-        verdict, reason, secs, out = judge(f, args.timeout)
-        matched = verdict == args.expect
+    with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        results = list(pool.map(lambda f: (f, *judge(f, args.timeout)), args.files))
+    for f, verdict, reason, secs, out in results:
+        # `reject` is satisfied by anything short of a full acceptance
+        matched = verdict != "accept" if args.expect == "reject" else verdict == args.expect
         ok &= matched
         rows.append((f, verdict, matched, secs, reason))
         print(json.dumps({"file": f, "verdict": verdict, "expected": args.expect,

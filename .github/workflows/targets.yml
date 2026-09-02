@@ -1,0 +1,42 @@
+# Step 2 of PLAN.md §2: every target statement must type-check under this repo's
+# mathlib pin with `sorry` as its only hole. A target that fails here is not a target.
+name: targets
+
+on:
+  push:
+    paths:
+      - ".github/workflows/targets.yml"
+      - "lean-toolchain"
+      - "lakefile.toml"
+      - "lake-manifest.json"
+      - "targets/**"
+      - "tools/check.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: targets
+  cancel-in-progress: false
+
+jobs:
+  wellformed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        set: [minif2f/test]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: lean + mathlib cache + build
+        uses: leanprover/lean-action@v1.6.0
+        with:
+          auto-config: false
+          build: true
+          use-mathlib-cache: true
+
+      - name: type-check ${{ matrix.set }}
+        run: python3 tools/check.py --expect wellformed --jobs 2 targets/${{ matrix.set }}/*.lean
