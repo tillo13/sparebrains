@@ -5,6 +5,18 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **Runs on the roadmap need no per-run go.** Andy: "why would you need a go from me? of
+  course go, that's the whole point." Deploys and outward changes still get the disclosure
+  line first.
+- **Do them all: the nightly schedule.** Andy: "do them all to see if we can solve all them,
+  it's free, and no reason not to." The one constraint is the shared pool's per-provider daily
+  caps that pilgrims and kindness lean on by day, so the full pass runs at night: the attempt
+  workflow fires at 22:00 and 03:00 Pacific (Actions' timezone cron), each firing a sweep of
+  the next 30 targets no sweep has touched (`--unattempted`, alphabetical), lanes from medium
+  up, benched lanes skipped, two attempts in flight, cap 1,400 calls. About four nights for
+  244. Sweep mode runs (target, lane) pairs in parallel; ladder mode stays sequential because
+  its early stop depends on order. First chunk launched by hand: run 33586743955 (30 targets,
+  seed 2).
 - **Run 3 closed: 4 kernel-verified proofs on 5 sampled targets, 137 attempts, $0.** Three by
   `mistral-devstral` (medium), one by `openrouter-openrouter-free` (low, on its 14th lane).
   Tiny and low tiers: 1 accept in 70 attempts. High and frontier: 0 in 35, but 21 of those 35
