@@ -5,6 +5,14 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **"How we got here" sits under the ladder, never above it.** Andy: reference kindness_social and
+  pilgrims_world "as the baseline for how we started / still track / use the LLMs", after the main
+  spot. Matches the 2026-08-31 ordering rule (the engine leads; the apps are provenance). The
+  section names kumori.ai as the router, kindness.social as the first steady user and the pool's
+  canary (its replies graded into the router's quality catalog), pilgrims.world as the benchmark
+  that plays like a game, and prints live numbers from `kumori_llm_daily_caps` and
+  `kumori_llm_quality_samples`: calls yesterday, today and ever per app, graded replies, and each
+  app's share of today's pool as an equation. Nothing retired; both sites linked.
 - **Repair tries: the second and third try of a cell talk to the checker.** Andy, asked what he
   would want next, "ok do it". A cell's first try is *cold* (the file and nothing else). When it
   was rejected, tries two and three are *repair* tries: the lane is shown its own proof and the
