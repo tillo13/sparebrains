@@ -29,6 +29,11 @@ from check import judge                                              # the judge
 from ladder import rung_of, failure_kind, sort_key, RUNGS
 from utilities.kumori_api_client import (KumoriAPIError, init as kumori_init, llm_backends, llm_backoff_state,
                                          llm_chat, sparebrains_attempt)
+try:                                                                  # the clock on the site; older vendored clients lack it
+    from utilities.kumori_api_client import sparebrains_heartbeat
+except ImportError:
+    def sparebrains_heartbeat(row):
+        return None
 
 TIER_RANK = {"tiny": 0, "low": 1, "medium": 2, "high": 3, "frontier": 4}
 PROOF_SEP = re.compile(r":=\s*by\b")
@@ -411,6 +416,8 @@ def main():
             print(f"[target done] {name}: {t['accepts']}/{t['done']} lanes proved it ({t['errors']} lane errors) — {who}",
                   flush=True)
         if n % 25 == 0:
+            if state.get("heartbeat"):
+                state["heartbeat"]()
             with lock:
                 print(f"[tally] {n} calls · {state['accepts']} verified · {state['errors']} lane errors · "
                       f"{state['skipped']} skipped (benched) · {state['waits']} rate-limit waits · "
@@ -436,6 +443,15 @@ def main():
         parked = []                                      # cells whose provider is parked for this job
         deadline = t_start + args.max_minutes * 60 if args.max_minutes else None
         idle = {"since": None}
+
+        def heartbeat(status="running"):
+            with lock:
+                owed = len(work) + len(parked)
+            sparebrains_heartbeat({"run_id": run_id, "mode": mode, "status": status, "cells_total": total_cells,
+                                   "cells_owed": owed, "calls": state["calls"], "accepts": state["accepts"],
+                                   "lanes": len(order), "targets": len(names)})
+        heartbeat()
+        state["heartbeat"] = heartbeat
 
         def worker():
             spins = 0
@@ -478,6 +494,7 @@ def main():
         for th in threads:
             th.join()
         remaining = len(work) + len(parked)
+        heartbeat("done")
         print(f"ladder: {remaining} cells left for the next job ({len(parked)} behind a parked provider)")
     elif args.stop_on_accept:                            # ladder-asc/desc by hand: order matters, so sequential
         for name in names:

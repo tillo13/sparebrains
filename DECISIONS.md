@@ -5,6 +5,51 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **The ladder is the product, and it runs around the clock.** Andy: "I'm down", then "it should
+  run 24/7 nonstop … use them all up is fine with me", then the headline on sparebrains.kumori.ai
+  is "the chart/graph of who is solving what, with a timeline clock". Built today, receipts below.
+  *Rungs are provenance, never our own results* (`tools/ladder.py`): the Natural Number Game
+  restated over Mathlib's ℕ (`targets/primer/`, 74 of NNG4's 79 levels, Apache-2.0; the FLT joke
+  level and three duplicate statements skipped), Mathematics in Lean chapters 2–6 (`targets/mil/`,
+  60 exercises at commit `dd6d752`, Apache-2.0), then miniF2F's 130 `mathd_*` items labelled by the
+  MATH dataset's own Level 1–5 (`targets/minif2f/levels.json`: 130 of 130 matched by docstring,
+  129 at ratio 1.000; L1 25, L2 25, L3 25, L4 25, L5 30; Hendrycks et al. 2021, MIT), then AMC 12,
+  the miniF2F custom items, AIME and IMO by source. *Every primer and MIL rung ships a reference
+  proof* the targets workflow must see the kernel ACCEPT, so a rung nobody clears is provably
+  clearable. Published sets searched first (deep-search, 9 primary sources): nothing formalized
+  exists below olympiad level (FormalMATH, Lean Workbook, NuminaMath-LEAN all start there; GSM8K
+  has no Lean form), which is why the bottom rungs are restated from the game and the textbook.
+- **The loop, third version: `--ladder`.** Every lane (66, the tier floor is gone and untiered lanes
+  are in), every target of every set, three tries per (target, lane) cell, the whole ladder's first
+  try before anyone's second, owed cells computed from the git ledger, benched lanes left owed
+  rather than recorded as skipped, a wall-clock budget per job, and each job dispatches the next
+  (`actions: write`, `gh workflow run`); the two-hourly cron is the backstop. Every row carries its
+  rung and, for a reject, a `failure_kind` (`no_fence`, `lean3_syntax`, `unknown_name`,
+  `unsolved_goals`, `tactic_failed`, …) so the scoreboard says "syntax", never "cannot add". The
+  prompt now shows one complete example file, so a miss on 2 + 2 = 4 is a Lean-4 miss, not a
+  format guess. Proven on a stubbed harness (accepting, prose, benched and parked lanes) before
+  shipping. Full matrix: 318 targets × 66 lanes × 3 = 62,964 cells; 62,166 owed at first plan.
+- **The pool is sparebrains'.** Andy: "sparebrains gets 75% and the others then split. kindness and
+  pilgrims can be on drip." Router: `_POOL_CALLER_SHARE_OVERRIDES` gives `sparebrains` 0.75 of
+  every shared pool per day and the two sim keys 0.10 each (eval variants capped the same); their
+  Mistral pacing cutoffs went to 0.15 and 0.10. The production reserve (15%) and every human key
+  are untouched. Crons: pilgrims tick + burn every 2 h (were 2 min this morning), kindness's five
+  chat crons every 12 h (were 15–60 min). "Nights" is retired: caps are per UTC day, so the loop
+  drains each pool to its cap and parks until midnight.
+- **The site leads with the chart, and shows every equation.** Home page: a clock strip from a
+  per-job heartbeat (`sparebrains_jobs`; cells done of owed, pace = answered in 24 h ÷ 24, ETA =
+  owed ÷ pace, this job's verified / calls) with the equations and their live inputs written out
+  beneath, and the list of what the ETA does not model; the survival curve (a lane clears a rung
+  at verified ÷ answered ≥ 0.5 over ≥ 3 answered; a point is lanes clearing ÷ lanes asked); the
+  leaderboard (highest rung cleared, then verified, then the ratio); the lane-by-rung heatmap
+  (verified / answered per cell, shade = ratio, hover = most common kind of miss). Everything is a
+  query over `sparebrains_attempts`; nothing hand-entered. Andy: "show your work, verbosely, and
+  always with every thing we do" — now a rule in `CLAUDE.md`. Old rows were backfilled with rung
+  and failure kind by the same functions the loop uses.
+- **Expected shape, on record before the data.** Medium and high lanes near 100% on the primer;
+  tiny and low a third to a half, missing on syntax; some frontier reasoning lanes failing 2 + 2
+  by not finishing inside the token cap; the strong lanes' knee between MATH Level 3 and AMC;
+  IMO empty. Written down so the first full pass can be graded against a prediction.
 - **The daytime sims are turned down to minimal; the shared pool is the engine's by night.**
   Andy: "if we need to cut pilgrims and kindness_social down to minimal to open this lane to do
   work, then do it." Needed, by the numbers. Chunks A and B (`PLAN.md` §2) made 70 and 81 calls

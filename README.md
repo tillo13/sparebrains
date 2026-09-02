@@ -15,6 +15,24 @@ next attempt to build on. Nothing false survives; nothing learned is thrown away
 | Why, where the problems come from, the plan, how to check every claim | https://sparebrains.kumori.ai/about |
 | Code, targets, ledger, verified proofs | this repository |
 
+## The ladder
+
+The engine asks every free lane the same rungs, easiest first, three tries per (problem, lane), and the
+site draws who clears what: [sparebrains.kumori.ai](https://sparebrains.kumori.ai). Rungs are provenance,
+never our own results:
+
+| rung | problems | source | reference proofs |
+|---|---|---|---|
+| primer | 74 | the Natural Number Game, Lean 4 edition, restated over Mathlib's ℕ (`targets/primer/`) | yes, kernel-checked in CI |
+| mil | 60 | Mathematics in Lean, chapters 2–6, Avigad & Massot (`targets/mil/`) | yes, kernel-checked in CI |
+| MATH L1–L5 | 130 | miniF2F's `mathd_*` items, labelled by the MATH dataset's own levels (`targets/minif2f/levels.json`) | upstream's, not shipped |
+| amc12, custom, aime, imo | 114 | the rest of miniF2F, by problem source | upstream's, not shipped |
+
+A lane clears a rung at verified ÷ answered ≥ 0.5 over at least 3 answered asks. A reject is
+classified (`tools/ladder.py`): `lean3_syntax` and `no_fence` mean the model could not write a Lean 4
+file in the required shape, which says nothing about the math. Every number on the site carries the
+equation it came from, with the live inputs substituted.
+
 ## What is happening right now
 - **The exam paper.** `targets/minif2f/test/`: 244 competition problems (AMC, AIME, IMO,
   textbook algebra and number theory) in Lean 4, from DeepMind's corrected miniF2F fork, one

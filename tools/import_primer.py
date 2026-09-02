@@ -85,7 +85,7 @@ LEVELS = [
  ("AdvMultiplication", "L03eq_succ_of_ne_zero", "eq_succ_of_ne_zero", "(a : ℕ) (ha : a ≠ 0) : ∃ n, a = Nat.succ n", "exact Nat.exists_eq_succ_of_ne_zero ha"),
  ("AdvMultiplication", "L04one_le_of_ne_zero", "one_le_of_ne_zero", "(a : ℕ) (ha : a ≠ 0) : 1 ≤ a", "omega"),
  ("AdvMultiplication", "L05le_mul_right", "le_mul_right", "(a b : ℕ) (h : a * b ≠ 0) : a ≤ a * b", "rcases Nat.eq_zero_or_pos b with rfl | hb\n  · simp at h\n  · exact Nat.le_mul_of_pos_right a hb"),
- ("AdvMultiplication", "L06mul_right_eq_one", "mul_right_eq_one", "(x y : ℕ) (h : x * y = 1) : x = 1", "exact (Nat.mul_eq_one.mp h).1"),
+ ("AdvMultiplication", "L06mul_right_eq_one", "mul_right_eq_one", "(x y : ℕ) (h : x * y = 1) : x = 1", "have h1 : x ∣ 1 := ⟨y, h.symm⟩\n  exact Nat.dvd_one.mp h1"),
  ("AdvMultiplication", "L07mul_ne_zero", "mul_ne_zero", "(a b : ℕ) (ha : a ≠ 0) (hb : b ≠ 0) : a * b ≠ 0", "exact Nat.mul_ne_zero ha hb"),
  ("AdvMultiplication", "L08mul_eq_zero", "mul_eq_zero", "(a b : ℕ) (h : a * b = 0) : a = 0 ∨ b = 0", "exact mul_eq_zero.mp h"),
  ("AdvMultiplication", "L09mul_left_cancel", "mul_left_cancel", "(a b c : ℕ) (ha : a ≠ 0) (h : a * b = a * c) : b = c", "exact Nat.eq_of_mul_eq_mul_left (Nat.pos_of_ne_zero ha) h"),

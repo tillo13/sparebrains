@@ -18,6 +18,10 @@ Idle free-tier compute → machine-verified public artifacts. Read `DECISIONS.md
   Receipt: `BRAINSTORMS.md` §16 item 5 and §17; `DECISIONS.md` 2026-08-31.
 - **Vocabulary in anything public:** open problems, targets, scoreboard. Never "bounty"
   unless money is attached.
+- **Show the work, verbosely, always (Andy, 2026-09-02).** Every computed number on the site or in
+  the docs carries its equation with the live inputs substituted (the ETA, the pace, per 1,000,
+  "clears a rung", the leaderboard order). Nothing computed appears bare. Charts derive from
+  `sparebrains_attempts` / `sparebrains_jobs` in Postgres, never from a hand-made number.
 - **Machine identifiers are `sparebrains`, lowercase, everywhere.** `sparebrAIns` only where
   a human reads it.
 - **Nothing runs locally or on the ROG** (`DECISIONS.md` 2026-09-01 evening). Verification is

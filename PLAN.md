@@ -1,9 +1,10 @@
 # PLAN — sparebrAIns
 
-**Status 2026-09-02: §2 steps 1–3 are built (verifier, targets, loop). First loop run in
-flight; first verified proof landed (`DECISIONS.md` 2026-09-02). §7 storefront gate is open. Earlier: §2 step 1 is built. The verifier runs in GitHub Actions
-(`.github/workflows/check.yml`, `tools/check.py`). Steps 2–4 of §2 each need their own
-green light. Decisions taken today: `DECISIONS.md` 2026-09-01 (evening).**
+**Status 2026-09-02 (evening): the ladder runs around the clock.** Three target sets (primer 74,
+Mathematics in Lean 60, miniF2F 244 with MATH levels on the 130 mathd items), every lane, three
+tries per cell, jobs chained every two hours; sparebrains holds 75% of every shared pool; the site
+leads with the survival curve, the clock and the leaderboard, every equation shown
+(`DECISIONS.md` 2026-09-02). Earlier the same day: §2 steps 1–3 built, first verified proof, sweep 1.
 Point-in-time: every number here was measured on the day stated; re-derive before acting.
 
 ## 0. Root
@@ -241,7 +242,8 @@ there is no row where the pool is its own judge.
 Four phases, in order. Each step names what it produces and what decides the next one.
 Nothing is promised on a date; everything is gated on a measured number.
 
-**Phase A: finish the measurement**
+**Phase A: finish the measurement** — superseded 2026-09-02 by the ladder (every set, every lane,
+three tries, 24/7); kept for the record.
 1. Close the first ladder run (33582595117) → verified-per-lane on the 5-target sample, here in §2.
 2. Sweep run: 30 targets × every lane from medium up, 1 attempt, no early stop → real
    verified-per-1,000-calls per lane. Decides the lane roster.
@@ -250,9 +252,10 @@ Nothing is promised on a date; everything is gated on a measured number.
 5. Nightly schedule with a call cap (step 4 of §2) → yield over time as lanes come and go.
 
 **Phase B: raise the ceiling, for free**
-6. Several tries per lane at higher temperature → pass@k per lane.
-7. Lean's error fed back for a second attempt (in §2 from day one).
-8. Skip lanes the router has already benched; statement identity enforced by construction.
+6. ~~Several tries per lane~~ three tries per cell, done 2026-09-02 (`--ladder`); higher temperature and
+   pass@k beyond 3 still open.
+7. Lean's error fed back for a second attempt (in §2 from day one; not yet in the ladder).
+8. ~~Skip lanes the router has already benched~~ done: benched cells stay owed; statement identity by construction.
 
 **Phase C: open problems**
 9. Second target set from google-deepmind/formal-conjectures (same mathlib pin); targets
