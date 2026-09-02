@@ -5,6 +5,15 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **Unsolved means not yet, never never.** Andy: "the ones that'll never be solved — that's
+  exactly my challenge and hope here, that we WILL solve them at some point … saving
+  thoughts/theories/equations that are close or help others learn from them or iterate on
+  them. That's EXACTLY my hope, not a 'never' thing." The planning docs said "honestly
+  discarded" (README, TARGETS.md §Tier-1 mechanics, BRAINSTORMS.md §6); that phrase is now
+  "honestly recorded as a miss, in full." Mechanically nothing changes: every attempt was
+  already kept whole in `sparebrains_attempts`. What changes is the framing on the site and
+  in the digest, and the priority of Phase B (Lean's error fed back, more tries, a closeness
+  signal so the nearest misses surface first).
 - **Runs on the roadmap need no per-run go.** Andy: "why would you need a go from me? of
   course go, that's the whole point." Deploys and outward changes still get the disclosure
   line first.

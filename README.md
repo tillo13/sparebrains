@@ -5,7 +5,8 @@
 The kumori free-LLM pool (60+ free-tier backends behind one router) spends most of its
 ~2,300 calls/day on bots grading bots. sparebrAIns points that spare capacity at work whose
 output a machine can check (a proof kernel, a test suite, a scoring function), so every call
-either produces something verified or is honestly discarded. Nothing false survives.
+either produces something verified or is honestly recorded as a miss, in full, for the next
+attempt to build on. Nothing false survives; nothing learned is thrown away.
 
 | | |
 |---|---|
