@@ -42,16 +42,17 @@ def judge(path, timeout):
     if run.returncode != 0:
         first_error = next((l for l in out.splitlines() if "error" in l), out[:200])
         return "reject", f"lean exit {run.returncode}: {first_error.strip()}", secs, out
-    holes = "declaration uses 'sorry'" in out
     audited = {n for n, _ in AXIOMS_RE.findall(out)} | set(NO_AXIOMS_RE.findall(out))
     missing = set(names) - audited
     if missing:
         return "reject", f"no axiom report for {sorted(missing)}", secs, out
+    holes = False
     for name, axioms in AXIOMS_RE.findall(out):
         used = {a.strip() for a in axioms.split(",") if a.strip()}
         bad = used - ALLOWED_AXIOMS - {"sorryAx"}
         if bad:
             return "reject", f"{name} depends on disallowed axioms {sorted(bad)}", secs, out
+        holes |= "sorryAx" in used   # the kernel's word, not the elaborator's warning
     if holes:
         return "wellformed", f"statement type-checks, proof is sorry {names}", secs, out
     return "accept", f"kernel accepted {names}", secs, out
