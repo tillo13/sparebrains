@@ -24,6 +24,18 @@ on:
         default: ""
       attempts:
         default: "1"
+      min_tier:
+        description: "drop lanes below this tier (sweep runs: medium)"
+        type: choice
+        options: ["", tiny, low, medium, high, frontier]
+        default: ""
+      skip_benched:
+        description: "skip lanes the router currently refuses"
+        type: boolean
+        default: true
+      jobs:
+        description: "parallel attempts in sweep mode (2 fits the runner's memory)"
+        default: "1"
       max_calls:
         description: "hard stop"
         default: "300"
@@ -61,7 +73,9 @@ jobs:
             --sample "${{ inputs.sample }}" --seed "${{ inputs.seed }}" \
             --order "${{ inputs.order }}" ${{ inputs.stop_on_accept && '--stop-on-accept' || '' }} \
             --lanes "${{ inputs.lanes }}" --attempts "${{ inputs.attempts }}" \
-            --max-calls "${{ inputs.max_calls }}"
+            --max-calls "${{ inputs.max_calls }}" --jobs "${{ inputs.jobs }}" \
+            ${{ inputs.min_tier != '' && format('--min-tier {0}', inputs.min_tier) || '' }} \
+            ${{ inputs.skip_benched && '--skip-benched' || '' }}
 
       - name: commit the ledger
         if: always() && steps.run.outcome != 'skipped'
