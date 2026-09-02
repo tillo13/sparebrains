@@ -165,10 +165,38 @@ there is no row where the pool is its own judge.
       AlphaProof eval set); yangky11's port is unmaintained and carries the original errors.
 - [ ] Subdomain: `sparebrains.` vs `spare.` vs `good.kumori.ai`. Storefront item, after the gate.
 
-## 7. After the gate (outline only; each step is its own green light)
+## 7. The plan from here (2026-09-02; mirrored on sparebrains.kumori.ai/about)
 
-1. Write §2's outcome into `DECISIONS.md`.
-2. The generate-verify loop as a cron on whichever substrate won: caller-tagged, telemetry
-   on, every attempt ledgered as verified / rejected / error. The ledger IS the product.
-3. First verified artifact → repo transfers to kumori-ai, README scoreboard goes up, and only
-   then the storefront items in §5.
+Four phases, in order. Each step names what it produces and what decides the next one.
+Nothing is promised on a date; everything is gated on a measured number.
+
+**Phase A: finish the measurement**
+1. Close the first ladder run (33582595117) → verified-per-lane on the 5-target sample, here in §2.
+2. Sweep run: 30 targets × every lane from medium up, 1 attempt, no early stop → real
+   verified-per-1,000-calls per lane. Decides the lane roster.
+3. Parallel workers in the loop (2–3 in flight, still paced) → a full 244 pass in one job.
+4. The full pass → the calibration number, and which row of §2's decision table applies.
+5. Nightly schedule with a call cap (step 4 of §2) → yield over time as lanes come and go.
+
+**Phase B: raise the ceiling, for free**
+6. Several tries per lane at higher temperature → pass@k per lane.
+7. Lean's error fed back for a second attempt (in §2 from day one).
+8. Skip lanes the router has already benched; statement identity enforced by construction.
+
+**Phase C: open problems**
+9. Second target set from google-deepmind/formal-conjectures (same mathlib pin); targets
+   page shows both sets.
+10. The counterexample hunt with plain checkers (§3 lane 3) — fallback if Lean yield ≈ 0.
+11. Submission path with a human in it: vibemathed.com, erdosproblems.com forum. Never an
+    automated mathlib PR (§5).
+
+**Phase D: the public product**
+12. Transfer the repo to kumori-ai (history intact).
+13. Nightly README scoreboard, CONTRIBUTING (allowed + disclosure + human in loop), issue
+    forms, restrict-issue-creation kill switch — the mr_beast_puzzle shape, copied.
+14. gh-aw intake triage against code.kumori.ai at $0, once strangers file targets.
+15. Site: per-target history, lane trends; subdomain cert (pending); provider output-use
+    terms before failure transcripts are treated as permanent public content.
+
+Open questions stay in §6. Follow along: the site overview, the repo's commit feed
+(`/commits/main.atom`), and `DECISIONS.md` for any change of plan.
