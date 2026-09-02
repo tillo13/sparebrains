@@ -1,0 +1,52 @@
+# Step 1 of PLAN.md §2: prove the verifier. Lean 4 + mathlib on a free public-repo
+# runner; accept files must be kernel-verified, reject files must be refused.
+name: check
+
+on:
+  push:
+    paths:
+      - ".github/workflows/check.yml"
+      - "lean-toolchain"
+      - "lakefile.toml"
+      - "lake-manifest.json"
+      - "Sparebrains.lean"
+      - "checks/**"
+      - "tools/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: runner before
+        run: |
+          nproc; free -h; df -h / | tail -1
+
+      - name: lean + mathlib cache + build
+        uses: leanprover/lean-action@v1.6.0
+        with:
+          auto-config: false
+          build: true
+          use-mathlib-cache: true
+
+      - name: runner after
+        run: |
+          df -h / | tail -1
+          du -sh .lake/packages/mathlib/.lake/build 2>/dev/null || true
+
+      - name: accept suite
+        run: python3 tools/check.py --expect accept checks/accept/*.lean
+
+      - name: reject suite
+        if: always()
+        run: python3 tools/check.py --expect reject checks/reject/*.lean
