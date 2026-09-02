@@ -58,7 +58,7 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 - **Step 3 shape: the loop is a GitHub job that is one more caller on the kumori router.**
   Shared client vendored via deploy.json `shared_files` like pilgrims; key in the repo secret
   `KUMORI_API_KEY`, which the client reads first. Caller attribution `app_name=eval:sparebrains`.
-- **Router key minted for `sparebrains`:** `kumori_api_keys` id 62, prefix `kmr_live_28aa147`,
+- **Router key minted for `sparebrains`:** `kumori_api_keys` id 62,
   scopes `llm.chat, llm.read, catalog.read, sparebrains.write`, owner key, tier experiment,
   cap 2000 (telemetry only for owner keys). Plaintext lives only in kumori-404602 Secret Manager
   as `SPAREBRAINS_KUMORI_API_KEY` (same naming as PILGRIMS_/KINDNESS_) and in the repo secret.
