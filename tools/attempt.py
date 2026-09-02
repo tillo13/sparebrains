@@ -23,6 +23,8 @@ from utilities.kumori_api_client import (init as kumori_init, llm_backends, llm_
 
 TIER_RANK = {"tiny": 0, "low": 1, "medium": 2, "high": 3, "frontier": 4}
 PROOF_SEP = re.compile(r":=\s*by\b")
+RUNNER_PATH = re.compile(r"\S*/\.lake/attempts/\S+?\.lean:")     # keep "line:col: error: …", drop the path
+SITE = "https://sparebrains.kumori.ai"
 FENCE = re.compile(r"```(?:lean4?)?\s*\n(.*?)```", re.S)
 SYSTEM = ("You are an expert in Lean 4 and Mathlib. You complete formal proofs. "
           "You answer with code only.")
@@ -151,7 +153,7 @@ def main():
     tmpdir = ROOT / ".lake" / "attempts"
     tmpdir.mkdir(parents=True, exist_ok=True)
     lock = threading.Lock()
-    state = {"calls": 0, "accepts": 0}
+    state = {"calls": 0, "accepts": 0, "errors": 0}
     solved = {}
 
     def run_one(name, lane, attempt_no):
@@ -184,6 +186,7 @@ def main():
             cpath = tmpdir / f"{name}.{lane['backend']}.{attempt_no}.lean"
             cpath.write_text(candidate)
             verdict, reason, lean_s, lean_out = judge(str(cpath), args.lean_timeout)
+            reason = RUNNER_PATH.sub("", reason)
             if verdict == "wellformed":
                 verdict, reason = "reject", "proof still contains sorry"
         row = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "run_id": run_id,
@@ -200,10 +203,17 @@ def main():
             if verdict == "accept":
                 state["accepts"] += 1
                 solved.setdefault(name, lane)
-        sparebrains_attempt({**row, "prompt": prompt, "response": reply, "proof": proof,
-                             "candidate": candidate, "lean_output": lean_out})
+            elif verdict == "error":
+                state["errors"] += 1
+        saved = sparebrains_attempt({**row, "prompt": prompt, "response": reply, "proof": proof,
+                                     "candidate": candidate, "lean_output": lean_out}) or {}
+        link = f"  {SITE}/attempts/{saved['id']}" if saved.get("id") else ""
         print(f"[{n}/{args.max_calls}] {name} ← {lane['backend']} ({lane['tier']}) → {verdict}  "
-              f"call {call_s:.0f}s lean {lean_s:.1f}s  {reason[:90]}", flush=True)
+              f"call {call_s:.0f}s lean {lean_s:.1f}s  {reason[:110]}{link}", flush=True)
+        if n % 25 == 0:
+            with lock:
+                print(f"[tally] {n} attempts · {state['accepts']} verified · {state['errors']} lane errors · "
+                      f"{len(solved)}/{len(names)} targets solved so far", flush=True)
         if verdict == "accept":
             vpath = ROOT / "verified" / target_set / name / f"{lane['backend']}.lean"
             vpath.parent.mkdir(parents=True, exist_ok=True)
