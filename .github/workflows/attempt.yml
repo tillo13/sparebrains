@@ -68,7 +68,8 @@ jobs:
         run: |
           git config user.name "sparebrains-bot"
           git config user.email "sparebrains-bot@users.noreply.github.com"
-          git add ledger verified
+          mkdir -p ledger verified
+          git add -A -- ledger verified
           if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi
           git commit -q -F - <<MSG
           attempt run ${{ github.run_id }}: ${{ steps.run.outputs.calls }} calls, ${{ steps.run.outputs.accepts }} accepts, ${{ steps.run.outputs.mode }}
