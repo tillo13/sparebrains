@@ -5,6 +5,21 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **Receipts for the bottom rungs (targets runs 33646682214 and 33647799296).** Primer: 74 of 74
+  statements well-formed, 74 of 74 reference proofs accepted by the kernel (one proof rewritten
+  after the first run: `Nat.mul_eq_one.mp` is not a name at mathlib v4.33.1). Mathematics in Lean:
+  60 of 60 well-formed, 60 of 60 references accepted. Both sets are in the scheduled ladder.
+- **The site explains itself to someone who knows no mathematics.** Andy: "every chart, every
+  phrase, every number must be told what it is; assume nobody knows anything about math", then
+  "a glossary like kindness_social that tooltips the words". Done the kindness way: 55 plain-language
+  entries in one dict, inlined as JSON, a page script underlines each defined phrase the first time
+  it appears in any paragraph, list item, heading or table cell and shows the meaning on hover or
+  tap, the full list sits at the bottom of the home page with anchors, verb-like words (run, try,
+  ask) are not auto-matched. Verified in a headless browser: 192 underlined phrases, 35 distinct
+  terms, none inside code, links or the chart, no console errors. The home page also opens with a
+  six-step walkthrough and a "Right now" box: the cells each worker is asking about at this moment
+  (the loop pulses them on every call), the last six graded answers, and links to the problem file,
+  the transcript and the live GitHub Actions log, refreshed every 6 s from `/now.json`.
 - **The ladder is the product, and it runs around the clock.** Andy: "I'm down", then "it should
   run 24/7 nonstop … use them all up is fine with me", then the headline on sparebrains.kumori.ai
   is "the chart/graph of who is solving what, with a timeline clock". Built today, receipts below.
