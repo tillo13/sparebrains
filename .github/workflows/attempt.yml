@@ -1,8 +1,13 @@
 # Step 3 of PLAN.md §2: the loop. The free pool proposes, the kernel disposes, the
-# ledger remembers. Manual trigger only; the nightly schedule is step 4.
+# ledger remembers. Manual trigger with knobs, plus the nightly schedule (step 4):
+# two sweep chunks a night, Pacific, over whatever targets no sweep has touched yet,
+# so the whole exam paper gets covered without starving the daytime callers.
 name: attempt
 
 on:
+  schedule:
+    - cron: "0 22,3 * * *"
+      timezone: "America/Los_Angeles"
   workflow_dispatch:
     inputs:
       sample:
@@ -36,6 +41,10 @@ on:
       jobs:
         description: "parallel attempts in sweep mode (2 fits the runner's memory)"
         default: "1"
+      unattempted:
+        description: "take the first N targets no sweep has touched yet"
+        type: boolean
+        default: false
       max_calls:
         description: "hard stop"
         default: "300"
@@ -68,14 +77,23 @@ jobs:
         id: run
         env:
           KUMORI_API_KEY: ${{ secrets.KUMORI_API_KEY }}
+        env:
+          SCHEDULED: ${{ github.event_name == 'schedule' }}
         run: |
-          python3 tools/attempt.py \
-            --sample "${{ inputs.sample }}" --seed "${{ inputs.seed }}" \
-            --order "${{ inputs.order }}" ${{ inputs.stop_on_accept && '--stop-on-accept' || '' }} \
-            --lanes "${{ inputs.lanes }}" --attempts "${{ inputs.attempts }}" \
-            --max-calls "${{ inputs.max_calls }}" --jobs "${{ inputs.jobs }}" \
-            ${{ inputs.min_tier != '' && format('--min-tier {0}', inputs.min_tier) || '' }} \
-            ${{ inputs.skip_benched && '--skip-benched' || '' }}
+          if [ "$SCHEDULED" = "true" ]; then
+            # nightly chunk: sweep, strong lanes, next 30 unswept targets
+            python3 tools/attempt.py --sample 30 --unattempted --order asc --min-tier medium \
+              --skip-benched --jobs 2 --max-calls 1400
+          else
+            python3 tools/attempt.py \
+              --sample "${{ inputs.sample }}" --seed "${{ inputs.seed }}" \
+              --order "${{ inputs.order }}" ${{ inputs.stop_on_accept && '--stop-on-accept' || '' }} \
+              --lanes "${{ inputs.lanes }}" --attempts "${{ inputs.attempts }}" \
+              --max-calls "${{ inputs.max_calls }}" --jobs "${{ inputs.jobs }}" \
+              ${{ inputs.min_tier != '' && format('--min-tier {0}', inputs.min_tier) || '' }} \
+              ${{ inputs.skip_benched && '--skip-benched' || '' }} \
+              ${{ inputs.unattempted && '--unattempted' || '' }}
+          fi
 
       - name: commit the ledger
         if: always() && steps.run.outcome != 'skipped'

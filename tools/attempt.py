@@ -93,6 +93,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--targets", default="targets/minif2f/test")
     ap.add_argument("--only", default="", help="comma-separated target names (overrides --sample)")
+    ap.add_argument("--unattempted", action="store_true",
+                    help="take the first --sample targets no sweep run has touched (alphabetical); exit 0 when none remain")
     ap.add_argument("--sample", type=int, default=5)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--lanes", default="", help="comma-separated backend names (default: every live lane)")
@@ -118,6 +120,22 @@ def main():
     names = sorted(p.stem for p in tdir.glob("*.lean"))
     if args.only:
         names = [n.strip() for n in args.only.split(",") if n.strip()]
+    elif args.unattempted:
+        swept = set()
+        for f in (ROOT / "ledger" / target_set).glob("*.jsonl"):
+            for line in f.read_text().splitlines():
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if str(r.get("mode", "")).startswith("sweep"):
+                    swept.add(r["target"])
+        remaining = [n for n in names if n not in swept]
+        print(f"unattempted: {len(remaining)} of {len(names)} targets not yet swept")
+        if not remaining:
+            print("all targets swept; nothing to do")
+            return 0
+        names = remaining[:args.sample]
     else:
         names = random.Random(args.seed).sample(names, min(args.sample, len(names)))
     known, unknown = lanes(args.lanes, args.min_tier, args.skip_benched)
