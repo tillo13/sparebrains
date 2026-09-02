@@ -132,8 +132,36 @@ Read: the strong lanes clear the easy contest items broadly (23 of 25 lanes prov
 the late AMC/AIME problems, and a few algebra identities. Nearly half of all attempts were
 lost to benching: high and frontier lanes get benched by the router mid-run (rate limits), so
 their answered counts are small. Skipping benched lanes only at the start is not enough;
-re-checking bench state per attempt is a Phase B item. Across all runs: 20 of 244 targets
+re-checking bench state per attempt is a Phase B item. Across all runs: 24 of 244 targets
 have a kernel-verified proof.
+
+**Chunks A and B measured (loop v2.1; A = run 33596793464, 05:59→07:19 UTC, by hand; B = run
+33613500311, 09:21→11:13 UTC, the first scheduled firing; each sweep-asc over the next 30
+unswept targets, lanes medium and up, 8 per provider, 2 in flight, cap 1,400):**
+
+| item | A | B |
+|---|---|---|
+| rows | 600 (70 calls, 530 skipped) | 630 (81 calls, 549 skipped) |
+| kernel-verified | 3 | 2 |
+| skipped: Mistral parked on the router's daily pacing gate | 213 | 240 |
+| skipped: lane benched for the whole run | 283 | 290 |
+| accepts / answered | 3 / 64 | 2 / 76 |
+| median model call, non-skipped | 44 s | 60 s |
+| HTTP 502 retries in the client | 37 | 27 |
+| targets newly swept (8 lanes answered) | 4 | 0 |
+| cost | $0 | $0 |
+
+Read: the engine was throttled, not failing. Mistral lanes gave 220 of sweep 1's 241 accepts,
+and both chunks hit the router's Tier-0 pacing gate on the Mistral pool (about 1M tokens per
+UTC day pool-wide, 30M per month): at run time the pool stood at 1,127,264 tokens against a
+1,000,006 allowance, 595,422 of it sweep 1's own spend under the old `eval:` tag. The API says
+"spent this month's free token budget" with a retry-after to October 1; it is a one-day rest
+that ends at 00:00 UTC. The other providers were benched by the router after sweep 1's 479
+errors. What answered (the openrouter nemotron and minimax family, three groq gptoss lanes)
+returned 5 accepts in 140 answers, on the AIME-heavy alphabetical head of the paper. The swept
+counter went 217 → 213 → 213, so B re-walked 26 of A's targets. Daytime sims were the other
+half of the pool's Mistral spend and most of openrouter's 1,000/day cap; turned down 2026-09-02
+(`DECISIONS.md`).
 
 ## 3. Lanes, and the substrate each one fits
 
@@ -176,7 +204,8 @@ there is no row where the pool is its own judge.
   is the public ledger of kernel-checked proofs plus vibemathed entries; a mathlib PR only
   for the rare one a human judged worth a maintainer's hour. mathlib's AI-contribution
   policy: check before any PR.
-- **Turning kindness / pilgrims down.** §1 numbers. Revisit after §2.
+- ~~**Turning kindness / pilgrims down.** §1 numbers. Revisit after §2.~~ Done 2026-09-02 after
+  the yield gate (`DECISIONS.md`): both sims cut to about 7–10% of their firings.
 - **Dashboards, org README, CONTRIBUTING, issue forms, the Pages site.** Storefront. After
   the first verified artifact.
 - **Any web code.** GitHub's native features plus one read-only route in kumori cover every
@@ -197,6 +226,8 @@ there is no row where the pool is its own judge.
 - [ ] mathlib AI-contribution policy; Metaculus season rules. Both unverified.
 - [ ] Copilot budget → $0 on the org (Andy click).
 - [ ] The 09-01 mistral spike (§1): what drove 1,723 calls against a 52/day norm.
+- [ ] kumori cleanup, not this repo: the Tier-0 daily pacing 503 says "spent this month's free token
+      budget" with a retry-after to next month; it is a one-day rest (`DECISIONS.md` 2026-09-02).
 - [ ] kumori cleanup, not this repo: `mistral-mistral-large-latest` and `-large-2512` 403 on the
       primary key on every call (paid models in the free pool?); the breaker rotates keys each time.
 - [ ] kumori cleanup, not this repo: GitHub Models retired 2026-07-30; four router lanes still

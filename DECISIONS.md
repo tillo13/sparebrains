@@ -5,6 +5,31 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **The daytime sims are turned down to minimal; the shared pool is the engine's by night.**
+  Andy: "if we need to cut pilgrims and kindness_social down to minimal to open this lane to do
+  work, then do it." Needed, by the numbers. Chunks A and B (`PLAN.md` §2) made 70 and 81 calls
+  in two runs of 80 and 112 minutes because Mistral, the source of 220 of sweep 1's 241 accepts,
+  was parked on the router's daily pacing gate (the pool at 1,127,264 tokens against a 1,000,006
+  allowance; sweep 1 itself 595,422 of that) and every other provider was benched. Seven-day
+  means from `kumori_llm_daily_caps`: the pilgrims tick engine 992 router calls/day (the largest
+  caller: 448/day of openrouter's 1,000 cap, 324 opencode_zen, 172 groq, 29 Mistral) and the
+  kindness key 620/day (206 direct + 414 eval-tagged; 101 Mistral, 302 openrouter). The two sims
+  together were roughly half the Mistral pool's daily tokens and three quarters of openrouter's
+  cap. Cut, both through `cron.yaml` (deployed with `deploy`, commits `2bf7dd9` pilgrims,
+  `31e12ae` kindness): pilgrims tick and burn every 30 min, were every 2 (about 7% of
+  the firings; the ward lane keeps its own key and cadence, revive makes no LLM calls); kindness's
+  five chat-bearing crons (generate-thread, agent-responses, agent-reflect, scrape-topics,
+  revisit-old-threads) every 4–6 h, were every 15–60 min (224 firings/day → 22; the non-LLM crons
+  untouched). Verified on the pilgrims request log: the 2-minute cadence stops at 14:03 UTC.
+  Not blinded: the router's tier ordering reads only `heuristic_v1` canary rows (2026-09-01
+  entry), and kindness's live samples feed nothing routing reads. Reverting is one `cron.yaml`
+  edit per repo. Left alone: the router's Mistral pacing cutoffs (`_POOL_PACING_CUTOFFS`) and
+  the sims' hardcoded per-firing batch sizes; if a night still gates, those are next.
+- **The pacing gate's wording is wrong for what it does.** `api_v1_llm_bp.py` answers the
+  Tier-0 daily rest with "is gated: its provider pool spent this month's free token budget" and
+  a retry-after to the first of next month. The gate that fires is the per-day allowance, which
+  resets at 00:00 UTC. The loop parks the provider per run, so nothing broke, but the transcripts
+  now say "month" for a one-day rest. kumori cleanup, logged in `PLAN.md` §6; not this repo.
 - **Sweep 2 (run 33594952834) cancelled after 46/46 Mistral "returned no text"; root cause is
   the router's fair-share gate, and it was doing its job.** Server log, verbatim: `shared_pool
   'mistral': caller 'eval:sparebrains' spent its share (560/432 of 2880) — refusing …`. The
