@@ -66,6 +66,21 @@ ASK = ("Complete the proof in this Lean 4 file (Lean v4.33.1, mathlib v4.33.1, `
        "```lean\n" + EXAMPLE + "```\n\nNow the file to complete:\n\n")
 
 
+def public_record_ok(lane):
+    """DECISIONS.md 2026-09-02: two provider groups may not appear in a public, Apache-2.0 record.
+    Cohere's Terms of Use bar benchmarking and distributing anything the API returns; NVIDIA's API
+    Trial ToS is trial-only and bars letting others use generated content competitively, which an
+    open license cannot promise. The router keeps these lanes for other apps; this loop never asks
+    them. Narrow the Nemotron rule if a non-trial free host ever serves those weights."""
+    model = (lane.get("model") or "").lower()
+    provider = (lane.get("provider") or "").lower()
+    if provider == "cohere" or model.startswith("cohere/"):
+        return False
+    if provider == "nvidia" or model.startswith("nvidia/") or "nemotron" in model:
+        return False
+    return True
+
+
 def lanes(explicit, min_tier=None, skip_benched=False):
     """Live chat lanes, ordered by quality tier. Shape of a backend dict is logged once.
     min_tier drops everything below it (and every untiered lane); skip_benched drops lanes
@@ -86,6 +101,9 @@ def lanes(explicit, min_tier=None, skip_benched=False):
         known = {l["backend"]: l for l in out}
         out = [known.get(w, {"backend": w, "provider": None, "model": None, "tier": "unknown", "rank": -1})
                for w in want]
+    barred = [l["backend"] for l in out if not public_record_ok(l)]
+    out = [l for l in out if public_record_ok(l)]
+    print(f"skipping {len(barred)} lane(s) whose provider terms forbid a public record: {', '.join(barred) or 'none'}")
     if skip_benched:
         state = llm_backoff_state()
         benched = {n for n, d in state.items() if d.get("backed_off")}
@@ -483,6 +501,7 @@ def main():
             print(f"  … {max(0, len(work) - 40)} more")
             return 0
         parked = []                                      # cells whose provider is parked for this job
+        cell_errors = defaultdict(int)                   # (set, target, lane) → lane errors in this job
         deadline = t_start + args.max_minutes * 60 if args.max_minutes else None
         idle = {"since": None}
 
@@ -555,6 +574,12 @@ def main():
                 elif v == "defer":
                     with lock:
                         work.append(item)
+                elif v == "error":
+                    key = (tset, name, lane["backend"])
+                    with lock:                           # a lane error is not an answer: the cell goes to the back
+                        cell_errors[key] += 1            # of this job's queue, until the ledger's three-error cap
+                        if hist[key]["errors"] + cell_errors[key] < 3:
+                            work.append(item)
 
         threads = [threading.Thread(target=worker, daemon=True) for _ in range(max(1, args.jobs))]
         for th in threads:

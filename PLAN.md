@@ -223,10 +223,9 @@ there is no row where the pool is its own judge.
       (`kumori/code/PLAN_local_llm_lane.md`)? Decided by §2's outcome.
 - [x] ~~Donation recipient for the money-posture sentence.~~ Parked 2026-09-02 (Andy: "way down the
       line"; nothing sends money to a scoreboard). The sentence stays; a recipient only if money ever appears.
-- [ ] **Provider output-use terms, then a license on `ledger/` and `verified/`.** The "for good" artifact is
-      the kernel-graded record (model, problem, try, verdict, failure kind, transcript, repair pairs) as an
-      open dataset others can work off. Transcripts stay behind the site until each provider's terms on
-      redistributing model output are read clause by clause; then Apache-2.0 to match the sources.
+- [x] ~~**Provider output-use terms, then a license on `ledger/` and `verified/`.**~~ Done 2026-09-02:
+      Apache-2.0 at the root (`LICENSE`); Cohere and the NVIDIA trial endpoints left the caller; rows they
+      already produced are carved out in `README.md`. The clause-by-clause read is the `DECISIONS.md` entry.
 - [ ] Success metric v2: verified count, upstreamed count, scoreboard entries.
 - [ ] mathlib AI-contribution policy; Metaculus season rules. Both unverified.
 - [x] ~~Copilot budget → $0 on the org (Andy click).~~ Retired 2026-09-02: GitHub removed $0 Copilot

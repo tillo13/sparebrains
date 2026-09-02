@@ -91,6 +91,17 @@ No money flows through this project. Prizes won by contributors are theirs; anyt
 the org's own accounts is donated to a named recipient and logged here. The org never funds
 prizes itself. Every run costs $0 and says so in its commit.
 
+## License
+Apache-2.0 (`LICENSE`): the license of mathlib, of both target sets, and of the Lean proof
+datasets this record sits beside. It covers the tools, the ledger and the verified proofs.
+Carved out: model outputs from two provider groups whose terms do not allow a public record.
+Rows, transcripts and `verified/` files from Cohere lanes and from NVIDIA's trial endpoints
+(OpenRouter `nvidia/*:free`, the direct `nvidia` lanes, OpenCode's Nemotron free), produced by
+jobs through run 33652466778, stay as published under those providers' own terms, not this
+license; those lanes no longer run here. Verdict rows (target, lane, verdict, timing) are this
+project's own facts and are licensed. The clause-by-clause read of every provider is in
+`DECISIONS.md` (2026-09-02).
+
 ## Provenance
 Built on the kumori free-LLM substrate (`kumori/shared/kumori_free_llm`) that also runs
 pilgrims_world and kindness_social. Those apps are how the substrate got built; this is what

@@ -5,6 +5,53 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **The record is Apache-2.0; Cohere and the NVIDIA trial endpoints leave the caller (evening; Andy: "you
+  tell me, what's best practice here?").** Every provider's current terms read clause by clause today.
+  - **License: Apache-2.0 at the root**, covering `tools/`, `ledger/`, `verified/`. Receipts: mathlib4,
+    google-deepmind/miniF2F, formal-conjectures, equational_theories, erdosproblems, NuminaMath-LEAN,
+    Lean-Workbook, OpenR1-Math-220k and SYNTHETIC-1 are Apache-2.0 (STP is MIT); both target sets carry
+    Apache-2.0 upstream (`targets/*/LICENSE`); a proof that goes to mathlib has to be Apache-2.0 already.
+    The general-ML convention (NVIDIA's four post-training sets CC-BY-4.0, WildChat ODC-BY, Dolly
+    CC-BY-SA) was not taken: CC-BY is not a software license and `verified/` is Lean code.
+  - **Terms, as read (each at the provider's own URL, 2026-09-02).** Mistral Commercial ToS 3.1: the
+    customer owns all Output, Mistral assigns any interest; 3.3 restricts only image outputs; 6(d)(e) bar
+    using Output to reverse-engineer. Groq Services Agreement 4.2: the customer retains all IP in Inputs
+    and Outputs; Groq may not train on them. OpenRouter ToS §5: output ownership follows the serving
+    provider's terms; §3: account-level prompt logging, if on, gives OpenRouter a perpetual commercial
+    license (not checked on our account; does not bind the record). GMICloud, serving MiniMax M3 and
+    M2.7: a website T&C with no output clause; the MiniMax licenses govern weights and are silent on
+    outputs. Novita 10.1: license to Novita only to provide the service. Poolside EULA: no ownership
+    clause on output. Google Gemini API terms: we may not use the service to develop competing models;
+    Google trains on unpaid traffic; Gemma ToU 3.3: "Google claims no rights in Outputs". OpenMDW 1.1
+    (Nemotron Ultra, Lightning, Content Safety, Poolside Laguna): "no restrictions or obligations" on
+    outputs. NVIDIA Nemotron Open Model License and Open Model Agreement: no ownership claim on outputs.
+    Llama 3.2: a model trained on its outputs must carry "Llama" in its name. gpt-oss, ALLaM,
+    North-Mini-Code, dots-3: Apache-2.0; Ling-3.0: MIT.
+  - **Cohere leaves** (11 direct lanes plus `cohere/north-mini-code:free`; 56 answers, 2 accepts). Cohere
+    Terms of Use: "You may not access the Cohere Solution for … any other benchmarking or competitive
+    purposes"; "Content", defined as anything provided through the Cohere API, may not be published or
+    distributed. A public scoreboard is a benchmark.
+  - **NVIDIA trial endpoints leave** (OpenRouter `nvidia/*:free`, the direct `nvidia` lanes, OpenCode's
+    Nemotron free; 8 lanes, 130 answers, 21 accepts). NVIDIA API Trial ToS 1.2: access "for limited trial
+    purposes only and without use of the API Service or Generated Content in production"; 4.12: "You will
+    not use (or allow others to use) the API Service including Generated Content to develop or improve
+    products or services that compete with the API Service." 6.3 makes the output ours, but "allow others"
+    cannot be squared with an Apache-2.0 grant, and a loop that runs around the clock is not a trial. The
+    same weights sit under OpenMDW or the Nemotron license with no output restriction; if a non-trial free
+    host serves them, the lanes come back (`tools/attempt.py`, `public_record_ok`).
+  - **Everything else stays**: Mistral (32 lanes), Groq (4), MiniMax via GMICloud (2), Gemma via Google AI
+    Studio (2; the compete clause binds this project, not the record), Poolside, Novita, AtlasCloud,
+    OpenCode MiMo. Rows already produced by the two departing groups stay where they are, carved out of the
+    grant in `README.md`; nothing deleted or moved. Precedent: Alpaca went CC-BY-NC whole over one
+    generator's terms; WildChat and NVIDIA's sets keep a permissive license and name the generator per row.
+    This record does the latter, with the two groups also removed from the caller because the enforcement
+    surface is the account, and the account is the shared kumori router.
+  - Not yet read: Vercel AI Gateway, four lanes onboarded 2026-09-02 (the same MiniMax, Laguna and Ling
+    weights, whose licenses are above); the gateway's own terms are the open item, and it has no rows yet.
+  - Community read (deep-search, 4 threads, two on topic): r/LocalLLaMA 17vbg1f (49 comments) and
+    r/MachineLearning 123oovw (32 comments) both land on "enforceable? no; can they ban the account? yes",
+    and on companies refusing NC-tainted sets. Neither changes the decision.
+
 - **"How we got here" sits under the ladder, never above it.** Andy: reference kindness_social and
   pilgrims_world "as the baseline for how we started / still track / use the LLMs", after the main
   spot. Matches the 2026-08-31 ordering rule (the engine leads; the apps are provenance). The
