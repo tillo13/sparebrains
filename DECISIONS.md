@@ -5,6 +5,15 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **Loop, second version (before the first scheduled run).** Andy: "I want it to work super
+  well." Four changes, all in `tools/attempt.py`: bench state re-checked before every attempt
+  (cached 30 s) and benched pairs deferred to the back of the queue up to three times, then
+  recorded as `skipped` with no call made; consecutive calls interleaved across providers so 28
+  Mistral lanes are never walked back to back; a per-provider lock so two workers never hit one
+  provider at once; the router's retry-after honored once on a rate limit instead of counting a
+  dead attempt. Sweep mode is now a work queue with daemon workers rather than a fixed map.
+  Proven on a stubbed harness (benched, mid-run bench, rate limit, prose reply, accept path)
+  before shipping; the real proof is the 22:00 run's error count against sweep 1's 479.
 - **Sweep 1 closed: 241 verified proofs on 17 of 30 targets, 1,050 attempts, $0.** The
   per-lane number exists now: the best free lanes return about one accepted proof per two
   answered asks on this exam paper (`PLAN.md` §2). Nearly half of attempts were lost to

@@ -11,15 +11,15 @@ git ledger and posts its full transcript to kumori's sparebrains_attempts table.
 Accepted proofs are saved whole under verified/.
 """
 import argparse, hashlib, json, os, random, re, sys, threading, time
-from concurrent.futures import ThreadPoolExecutor
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT), str(ROOT / "tools")]
 from check import judge                                              # the judge, unchanged
-from utilities.kumori_api_client import (init as kumori_init, llm_backends, llm_backoff_state, llm_chat,
-                                         sparebrains_attempt)
+from utilities.kumori_api_client import (KumoriAPIError, init as kumori_init, llm_backends, llm_backoff_state,
+                                         llm_chat, sparebrains_attempt)
 
 TIER_RANK = {"tiny": 0, "low": 1, "medium": 2, "high": 3, "frontier": 4}
 PROOF_SEP = re.compile(r":=\s*by\b")
@@ -67,6 +67,22 @@ def lanes(explicit, min_tier=None, skip_benched=False):
     known = sorted((l for l in out if l["rank"] >= 0), key=lambda l: (l["rank"], l["backend"]))
     unknown = sorted((l for l in out if l["rank"] < 0), key=lambda l: l["backend"])
     return known, unknown                                # untiered lanes always go last
+
+
+def interleave_by_provider(lanes_in_order):
+    """Round-robin across providers so consecutive calls never hammer one account.
+    Twenty-eight Mistral lanes share one free-tier rate limit; walking them back to back is
+    what benched half of sweep 1. Tier order is kept within each provider's queue."""
+    queues = defaultdict(deque)
+    for l in lanes_in_order:
+        queues[l["provider"]].append(l)
+    out = []
+    while queues:
+        for prov in list(queues):
+            out.append(queues[prov].popleft())
+            if not queues[prov]:
+                del queues[prov]
+    return out
 
 
 def extract_proof(reply, name):
@@ -154,29 +170,95 @@ def main():
     tmpdir = ROOT / ".lake" / "attempts"
     tmpdir.mkdir(parents=True, exist_ok=True)
     lock = threading.Lock()
-    state = {"calls": 0, "accepts": 0, "errors": 0}
+    state = {"calls": 0, "accepts": 0, "errors": 0, "skipped": 0, "waits": 0}
     solved = {}
     per_target = {n: {"done": 0, "accepts": 0, "errors": 0, "lanes": []} for n in names}
     per_lane = {l["backend"]: {"tier": l["tier"], "attempts": 0, "accepts": 0, "errors": 0} for l in order}
     planned_per_target = len(order) * args.attempts
+    provider_lock = defaultdict(threading.Lock)          # never two workers on one provider at once
+    bench = {"t": 0.0, "state": {}}
+
+    def benched(backend):
+        """Router bench state, refreshed at most every 30 s. True = the router would 503 this lane now."""
+        now = time.monotonic()
+        with lock:
+            if now - bench["t"] > 30:
+                try:
+                    bench["state"] = llm_backoff_state() or {}
+                except Exception as e:
+                    print(f"bench state unavailable ({e}); assuming nothing is benched", flush=True)
+                bench["t"] = now
+            d = bench["state"].get(backend, {})
+        return bool(d.get("backed_off")) and (d.get("remaining_sec") or 0) > 0
+
+    def record(row, prompt=None, reply=None, proof=None, candidate=None, lean_out=None):
+        with lock:
+            with ledger.open("a") as fh:
+                fh.write(json.dumps(row) + "\n")
+        saved = sparebrains_attempt({**row, "prompt": prompt, "response": reply, "proof": proof,
+                                     "candidate": candidate, "lean_output": lean_out}) or {}
+        return f"  {SITE}/attempts/{saved['id']}" if saved.get("id") else ""
+
+    def base_row(name, lane, attempt_no, statement_sha):
+        return {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "run_id": run_id,
+                "target_set": target_set, "target": name, "statement_sha": statement_sha,
+                "backend": lane["backend"], "provider": lane["provider"], "model": lane["model"],
+                "quality_tier": lane["tier"], "tier_rank": lane["rank"], "attempt_no": attempt_no, "mode": mode}
+
+    def skip(name, lane, attempt_no, why):
+        """A pair the router would refuse: recorded honestly, no model call, no Lean."""
+        target_text = (tdir / f"{name}.lean").read_text()
+        prefix = target_text[:PROOF_SEP.search(target_text).end()]
+        row = {**base_row(name, lane, attempt_no, hashlib.sha256(prefix.encode()).hexdigest()),
+               "verdict": "skipped", "reason": why, "call_seconds": 0.0, "lean_seconds": 0.0,
+               "response_chars": 0, "proof_sha": None}
+        with lock:
+            state["skipped"] += 1
+            t = per_target[name]
+            t["done"] += 1
+            target_done = (not args.stop_on_accept) and t["done"] >= planned_per_target
+        record(row)
+        print(f"[skip] {name} ← {lane['backend']} ({lane['tier']}): {why}", flush=True)
+        if target_done:
+            who = ", ".join(t["lanes"]) if t["lanes"] else "nobody"
+            print(f"[target done] {name}: {t['accepts']}/{t['done']} lanes proved it ({t['errors']} lane errors) — {who}",
+                  flush=True)
 
     def run_one(name, lane, attempt_no):
-        """One attempt: ask, splice, judge, record. Returns the verdict."""
+        """One attempt: ask (honoring retry-after once), splice, judge, record. Returns the verdict,
+        or 'defer' when the router benched the lane between the pre-check and the call."""
         target_text = (tdir / f"{name}.lean").read_text()
         prefix = target_text[:PROOF_SEP.search(target_text).end()]
         statement_sha = hashlib.sha256(prefix.encode()).hexdigest()
+        prompt = ASK + target_text
+        t0 = time.monotonic()
+        reply, err = "", None
+        with provider_lock[lane["provider"]]:
+            for tries in (1, 2):
+                try:
+                    reply, _ = llm_chat(lane["backend"], [{"role": "user", "content": prompt}],
+                                        max_tokens=args.max_tokens, temperature=0.2, system=SYSTEM,
+                                        app_name="eval:sparebrains", timeout=(10, args.call_timeout))
+                    err = None
+                    break
+                except KumoriAPIError as e:
+                    msg = str(e)
+                    if "is benched" in msg:
+                        return "defer"                   # the router's breaker tripped since the pre-check
+                    limited = e.status_code == 429 or "rate limit" in msg.lower() or "RPM spacing" in msg
+                    if tries == 1 and limited and e.retry_after and e.retry_after <= 90:
+                        with lock:
+                            state["waits"] += 1
+                        time.sleep(e.retry_after + 0.5)   # the router said when; wait and ask once more
+                        continue
+                    err = f"KumoriAPIError: {msg[:200]}"
+                    break
+                except Exception as e:
+                    err = f"{type(e).__name__}: {str(e)[:200]}"
+                    break
         with lock:
             state["calls"] += 1
             n = state["calls"]
-        prompt = ASK + target_text
-        t0 = time.monotonic()
-        try:
-            reply, _ = llm_chat(lane["backend"], [{"role": "user", "content": prompt}],
-                                max_tokens=args.max_tokens, temperature=0.2, system=SYSTEM,
-                                app_name="eval:sparebrains", timeout=(10, args.call_timeout))
-            err = None
-        except Exception as e:
-            reply, err = "", f"{type(e).__name__}: {str(e)[:200]}"
         call_s = time.monotonic() - t0
         proof = extract_proof(reply or "", name) if reply else None
         candidate = lean_out = None
@@ -193,17 +275,11 @@ def main():
             reason = RUNNER_PATH.sub("", reason)
             if verdict == "wellformed":
                 verdict, reason = "reject", "proof still contains sorry"
-        row = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "run_id": run_id,
-               "target_set": target_set, "target": name, "statement_sha": statement_sha,
-               "backend": lane["backend"], "provider": lane["provider"], "model": lane["model"],
-               "quality_tier": lane["tier"], "tier_rank": lane["rank"], "attempt_no": attempt_no,
-               "mode": mode, "verdict": verdict, "reason": reason[:300],
+        row = {**base_row(name, lane, attempt_no, statement_sha), "verdict": verdict, "reason": reason[:300],
                "call_seconds": round(call_s, 1), "lean_seconds": round(lean_s, 1),
                "response_chars": len(reply or ""),
                "proof_sha": hashlib.sha256(proof.encode()).hexdigest() if proof else None}
         with lock:
-            with ledger.open("a") as fh:
-                fh.write(json.dumps(row) + "\n")
             t, pl = per_target[name], per_lane[lane["backend"]]
             t["done"] += 1
             pl["attempts"] += 1
@@ -218,12 +294,13 @@ def main():
                 t["errors"] += 1
                 pl["errors"] += 1
             target_done = (not args.stop_on_accept) and t["done"] >= planned_per_target
-        saved = sparebrains_attempt({**row, "prompt": prompt, "response": reply, "proof": proof,
-                                     "candidate": candidate, "lean_output": lean_out}) or {}
-        link = f"  {SITE}/attempts/{saved['id']}" if saved.get("id") else ""
+        link = record(row, prompt, reply, proof, candidate, lean_out)
         print(f"[{n}/{args.max_calls}] {name} ← {lane['backend']} ({lane['tier']}) → {verdict}  "
               f"call {call_s:.0f}s lean {lean_s:.1f}s  {reason[:110]}{link}", flush=True)
         if verdict == "accept":
+            vpath = ROOT / "verified" / target_set / name / f"{lane['backend']}.lean"
+            vpath.parent.mkdir(parents=True, exist_ok=True)
+            vpath.write_text(candidate)
             print("    ┌ kernel-accepted proof, verbatim:\n" +
                   "\n".join("    │ " + l for l in proof.rstrip("\n").splitlines()) + "\n    └", flush=True)
         if target_done:
@@ -233,12 +310,9 @@ def main():
                   flush=True)
         if n % 25 == 0:
             with lock:
-                print(f"[tally] {n} attempts · {state['accepts']} verified · {state['errors']} lane errors · "
+                print(f"[tally] {n} calls · {state['accepts']} verified · {state['errors']} lane errors · "
+                      f"{state['skipped']} skipped (benched) · {state['waits']} rate-limit waits · "
                       f"{len(solved)}/{len(names)} targets solved so far", flush=True)
-        if verdict == "accept":
-            vpath = ROOT / "verified" / target_set / name / f"{lane['backend']}.lean"
-            vpath.parent.mkdir(parents=True, exist_ok=True)
-            vpath.write_text(candidate)
         return verdict
 
     if args.stop_on_accept:                              # ladder: order matters, so sequential
@@ -246,25 +320,66 @@ def main():
             for lane in order:
                 if state["calls"] >= args.max_calls or name in solved:
                     break
+                if benched(lane["backend"]):
+                    skip(name, lane, 1, "lane benched by the router at the time of the ask")
+                    continue
                 for attempt_no in range(1, args.attempts + 1):
                     if state["calls"] >= args.max_calls:
                         break
-                    if run_one(name, lane, attempt_no) == "accept":
+                    v = run_one(name, lane, attempt_no)
+                    if v == "defer":
+                        skip(name, lane, attempt_no, "router benched the lane mid-ask")
+                        break
+                    if v == "accept":
                         break
             if state["calls"] >= args.max_calls:
                 print(f"cap reached: {args.max_calls} calls")
                 break
-    else:                                                # sweep: every pair, independent, parallel
-        work = [(n, l, a) for n in names for l in order for a in range(1, args.attempts + 1)]
+    else:                                                # sweep: a queue of pairs, providers interleaved
+        lanes_rr = interleave_by_provider(order)
+        work = deque((n, l, a) for n in names for l in lanes_rr for a in range(1, args.attempts + 1))
         if len(work) > args.max_calls:
             print(f"cap: {len(work)} planned attempts trimmed to {args.max_calls}")
-            work = work[:args.max_calls]
-        with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-            list(pool.map(lambda w: run_one(*w), work))
+            work = deque(list(work)[:args.max_calls])
+        deferrals = defaultdict(int)
+
+        def worker():
+            while True:
+                with lock:
+                    if not work or state["calls"] >= args.max_calls:
+                        return
+                    item = work.popleft()
+                    remaining = len(work)
+                name, lane, a = item
+                key = (name, lane["backend"], a)
+                if benched(lane["backend"]):
+                    if deferrals[key] < 3 and remaining > 0:
+                        deferrals[key] += 1               # try again after the rest of the queue
+                        with lock:
+                            work.append(item)
+                        continue
+                    skip(name, lane, a, "lane benched by the router for the whole run")
+                    continue
+                if run_one(name, lane, a) == "defer":
+                    if deferrals[key] < 3:
+                        deferrals[key] += 1
+                        with lock:
+                            work.append(item)
+                    else:
+                        skip(name, lane, a, "router benched the lane mid-ask, three times")
+
+        threads = [threading.Thread(target=worker, daemon=True) for _ in range(max(1, args.jobs))]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+        if state["calls"] >= args.max_calls and work:
+            print(f"cap reached: {args.max_calls} calls, {len(work)} pairs not attempted")
 
     calls, accepts = state["calls"], state["accepts"]
-    print(f"done: {calls} calls, {accepts} accepts, {state['errors']} lane errors, "
-          f"{len(solved)}/{len(names)} targets solved, mode {mode}, run {run_id}")
+    print(f"done: {calls} calls, {accepts} accepts, {state['errors']} lane errors, {state['skipped']} skipped "
+          f"(benched), {state['waits']} rate-limit waits honored, {len(solved)}/{len(names)} targets solved, "
+          f"mode {mode}, run {run_id}")
     print("\nper target:")
     for n in names:
         t = per_target[n]
@@ -288,7 +403,8 @@ def main():
     if summary:
         with open(summary, "a") as fh:
             fh.write(f"### attempt run `{run_id}` — {mode}: {calls} calls, {accepts} verified, "
-                     f"{state['errors']} lane errors, {len(solved)}/{len(names)} targets solved, $0 · "
+                     f"{state['errors']} lane errors, {state['skipped']} skipped as benched, "
+                     f"{state['waits']} rate-limit waits, {len(solved)}/{len(names)} targets solved, $0 · "
                      f"[every transcript]({SITE}/runs/{run_id})\n\n")
             fh.write("| target | proved by (lanes) | of | first solver | tier |\n|---|---|---|---|---|\n")
             for n in names:
