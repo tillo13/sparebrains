@@ -143,6 +143,7 @@ def main():
     known, unknown = lanes(args.lanes, args.min_tier, args.skip_benched)
     order = (known[::-1] if args.order == "desc" else known) + unknown
     mode = f"{'ladder' if args.stop_on_accept else 'sweep'}-{args.order}"
+    t_start = time.time()
     print(f"run {run_id}: {len(names)} targets × {len(order)} lanes × {args.attempts} attempts, "
           f"mode {mode}, cap {args.max_calls} calls")
     for l in order:
@@ -155,6 +156,9 @@ def main():
     lock = threading.Lock()
     state = {"calls": 0, "accepts": 0, "errors": 0}
     solved = {}
+    per_target = {n: {"done": 0, "accepts": 0, "errors": 0, "lanes": []} for n in names}
+    per_lane = {l["backend"]: {"tier": l["tier"], "attempts": 0, "accepts": 0, "errors": 0} for l in order}
+    planned_per_target = len(order) * args.attempts
 
     def run_one(name, lane, attempt_no):
         """One attempt: ask, splice, judge, record. Returns the verdict."""
@@ -200,16 +204,33 @@ def main():
         with lock:
             with ledger.open("a") as fh:
                 fh.write(json.dumps(row) + "\n")
+            t, pl = per_target[name], per_lane[lane["backend"]]
+            t["done"] += 1
+            pl["attempts"] += 1
             if verdict == "accept":
                 state["accepts"] += 1
                 solved.setdefault(name, lane)
+                t["accepts"] += 1
+                pl["accepts"] += 1
+                t["lanes"].append(lane["backend"])
             elif verdict == "error":
                 state["errors"] += 1
+                t["errors"] += 1
+                pl["errors"] += 1
+            target_done = (not args.stop_on_accept) and t["done"] >= planned_per_target
         saved = sparebrains_attempt({**row, "prompt": prompt, "response": reply, "proof": proof,
                                      "candidate": candidate, "lean_output": lean_out}) or {}
         link = f"  {SITE}/attempts/{saved['id']}" if saved.get("id") else ""
         print(f"[{n}/{args.max_calls}] {name} ← {lane['backend']} ({lane['tier']}) → {verdict}  "
               f"call {call_s:.0f}s lean {lean_s:.1f}s  {reason[:110]}{link}", flush=True)
+        if verdict == "accept":
+            print("    ┌ kernel-accepted proof, verbatim:\n" +
+                  "\n".join("    │ " + l for l in proof.rstrip("\n").splitlines()) + "\n    └", flush=True)
+        if target_done:
+            t = per_target[name]
+            who = ", ".join(t["lanes"]) if t["lanes"] else "nobody"
+            print(f"[target done] {name}: {t['accepts']}/{t['done']} lanes proved it ({t['errors']} lane errors) — {who}",
+                  flush=True)
         if n % 25 == 0:
             with lock:
                 print(f"[tally] {n} attempts · {state['accepts']} verified · {state['errors']} lane errors · "
@@ -242,10 +263,23 @@ def main():
             list(pool.map(lambda w: run_one(*w), work))
 
     calls, accepts = state["calls"], state["accepts"]
-    print(f"done: {calls} calls, {accepts} accepts, {len(solved)}/{len(names)} targets solved")
+    print(f"done: {calls} calls, {accepts} accepts, {state['errors']} lane errors, "
+          f"{len(solved)}/{len(names)} targets solved, mode {mode}, run {run_id}")
+    print("\nper target:")
     for n in names:
-        l = solved.get(n)
-        print(f"  {n:45s} {'solved by ' + l['backend'] + ' (' + l['tier'] + ')' if l else 'unsolved'}")
+        t = per_target[n]
+        first = solved.get(n)
+        print(f"  {n:45s} {t['accepts']:3d}/{t['done']:3d} lanes  "
+              f"{'first: ' + first['backend'] + ' (' + first['tier'] + ')' if first else 'unsolved so far'}")
+    ranked = sorted(per_lane.items(), key=lambda kv: (-kv[1]["accepts"], -kv[1]["attempts"]))
+    print("\nper lane:")
+    for b, pl in ranked:
+        if pl["attempts"]:
+            answered = pl["attempts"] - pl["errors"]
+            per_k = round(1000 * pl["accepts"] / answered) if answered else 0
+            print(f"  {b:40s} {pl['tier']:9s} {pl['accepts']:3d}/{answered:3d} answered  "
+                  f"({per_k} per 1,000, {pl['errors']} errors)")
+    print(f"\nsite: {SITE}/runs/{run_id}")
     out = os.environ.get("GITHUB_OUTPUT")
     if out:
         with open(out, "a") as fh:
@@ -253,11 +287,25 @@ def main():
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as fh:
-            fh.write(f"### attempt run `{run_id}` — {mode}: {calls} calls, {accepts} accepts, "
-                     f"{len(solved)}/{len(names)} targets solved, $0\n\n| target | solved by | tier |\n|---|---|---|\n")
+            fh.write(f"### attempt run `{run_id}` — {mode}: {calls} calls, {accepts} verified, "
+                     f"{state['errors']} lane errors, {len(solved)}/{len(names)} targets solved, $0 · "
+                     f"[every transcript]({SITE}/runs/{run_id})\n\n")
+            fh.write("| target | proved by (lanes) | of | first solver | tier |\n|---|---|---|---|---|\n")
             for n in names:
-                l = solved.get(n)
-                fh.write(f"| `{n}` | {l['backend'] if l else '—'} | {l['tier'] if l else '—'} |\n")
+                t, l = per_target[n], solved.get(n)
+                fh.write(f"| `{n}` | {t['accepts']} | {t['done']} | {l['backend'] if l else '—'} | {l['tier'] if l else '—'} |\n")
+            fh.write("\n| lane | tier | verified | answered | per 1,000 | errors |\n|---|---|---|---|---|---|\n")
+            for b, pl in ranked:
+                if pl["attempts"]:
+                    answered = pl["attempts"] - pl["errors"]
+                    fh.write(f"| `{b}` | {pl['tier']} | {pl['accepts']} | {answered} | "
+                             f"{round(1000 * pl['accepts'] / answered) if answered else 0} | {pl['errors']} |\n")
+            if solved:
+                fh.write("\n<details><summary>every kernel-accepted proof in this run</summary>\n\n")
+                for vf in sorted((ROOT / "verified" / target_set).glob("*/*.lean")):
+                    if vf.stat().st_mtime >= t_start:
+                        fh.write(f"**{vf.parent.name} ← {vf.stem}**\n\n```lean\n{vf.read_text()}```\n\n")
+                fh.write("</details>\n")
     return 0
 
 
