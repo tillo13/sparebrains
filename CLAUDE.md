@@ -30,4 +30,5 @@ Idle free-tier compute → machine-verified public artifacts. Read `DECISIONS.md
 ## Substrate
 `kumori/shared/kumori_free_llm` (router; `docs/LIFECYCLE.md`, `docs/CAPACITY.md`) and a synced
 `kumori_api_client`, as in pilgrims_world and kindness_social. Caller tag for this project:
-`sparebrains`; `eval:sparebrains` for measurement runs.
+`sparebrains` for every real run (35% fair share of each provider pool); `eval:sparebrains`
+only for throwaway checks (the router treats `eval:` as test traffic, 15% share).

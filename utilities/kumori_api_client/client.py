@@ -294,7 +294,7 @@ def llm_generate(prompt, max_tokens=500, temperature=1.0):
 
 
 def llm_chat(backend_name, messages, max_tokens=500, temperature=0.3, system=None,
-             app_name=None, timeout=None):
+             app_name=None, timeout=None, timeout_s=None):
     """Pinned-backend multi-turn chat. Returns (text, backend_name).
 
     app_name: optional consumer attribution (e.g. 'dos_bros', 'galactica').
@@ -308,6 +308,8 @@ def llm_chat(backend_name, messages, max_tokens=500, temperature=0.3, system=Non
         body['system'] = system
     if app_name:
         body['app_name'] = app_name
+    if timeout_s:
+        body['timeout_s'] = int(timeout_s)   # server-side per-attempt ceiling (default 30, max 60): proofs need it
     data = _request('POST', '/api/v1/llm/chat', body, timeout=timeout or (5, 60))
     return data.get('text'), data.get('backend')
 

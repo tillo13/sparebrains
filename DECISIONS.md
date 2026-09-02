@@ -5,6 +5,22 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **Sweep 2 (run 33594952834) cancelled after 46/46 Mistral "returned no text"; root cause is
+  the router's fair-share gate, and it was doing its job.** Server log, verbatim: `shared_pool
+  'mistral': caller 'eval:sparebrains' spent its share (560/432 of 2880) — refusing …`. The
+  router classes any `eval:`-prefixed caller as test traffic with a 15% slice of a provider's
+  daily pool; an ordinary caller gets 35%, and 15% of every pool is always held for production.
+  Sweep 1 had spent 560 of the 432. Pilgrims and kindness were never at risk: this is the
+  protection Andy asked about, already built into the router. Fixes: (1) runs carry the caller
+  name `sparebrains` (35% = 1,008 Mistral calls per UTC day); `eval:sparebrains` only for
+  throwaway checks; (2) the router answers a spent share with an honest 503 and `retry_after_s`
+  to UTC midnight instead of a generic 502 (`api_v1_llm_bp.py`); (3) the loop parks a provider
+  for the rest of the run on that 503 and skips its remaining pairs without spending calls;
+  (4) `--unattempted` counts a target as swept only once 8 lanes actually answered it; (5) a cap
+  of lanes per provider per run (`--max-per-provider`, 8 on the schedule), highest tier first,
+  because the 28 Mistral lanes are mostly the same few models under different names and two
+  chunks a night must fit in one UTC day's share. Also seen: the two `mistral-large` lanes 403
+  on the primary key every call (paid models in the free pool); logged in `PLAN.md` §6.
 - **Loop, second version (before the first scheduled run).** Andy: "I want it to work super
   well." Four changes, all in `tools/attempt.py`: bench state re-checked before every attempt
   (cached 30 s) and benched pairs deferred to the back of the queue up to three times, then

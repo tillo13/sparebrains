@@ -24,6 +24,7 @@ from utilities.kumori_api_client import (KumoriAPIError, init as kumori_init, ll
 TIER_RANK = {"tiny": 0, "low": 1, "medium": 2, "high": 3, "frontier": 4}
 PROOF_SEP = re.compile(r":=\s*by\b")
 RUNNER_PATH = re.compile(r"\S*/\.lake/attempts/\S+?\.lean:")     # keep "line:col: error: …", drop the path
+MIN_ANSWERED_TO_COUNT_SWEPT = 8   # a target is "swept" only once this many lanes actually answered it
 SITE = "https://sparebrains.kumori.ai"
 FENCE = re.compile(r"```(?:lean4?)?\s*\n(.*?)```", re.S)
 SYSTEM = ("You are an expert in Lean 4 and Mathlib. You complete formal proofs. "
@@ -119,6 +120,8 @@ def main():
     ap.add_argument("--min-tier", choices=list(TIER_RANK), default=None, help="drop lanes below this tier")
     ap.add_argument("--skip-benched", action="store_true", help="drop lanes the router currently refuses")
     ap.add_argument("--jobs", type=int, default=1, help="parallel attempts in sweep mode (ladder is sequential)")
+    ap.add_argument("--max-per-provider", type=int, default=0,
+                    help="keep at most N lanes per provider, highest tier first (0 = all); the Mistral list is 28 aliases of a few models")
     ap.add_argument("--order", choices=["asc", "desc"], default="asc")
     ap.add_argument("--stop-on-accept", action="store_true")
     ap.add_argument("--attempts", type=int, default=1)
@@ -139,15 +142,16 @@ def main():
     if args.only:
         names = [n.strip() for n in args.only.split(",") if n.strip()]
     elif args.unattempted:
-        swept = set()
+        answered = defaultdict(int)          # target → lanes that actually answered in sweep runs
         for f in (ROOT / "ledger" / target_set).glob("*.jsonl"):
             for line in f.read_text().splitlines():
                 try:
                     r = json.loads(line)
                 except ValueError:
                     continue
-                if str(r.get("mode", "")).startswith("sweep"):
-                    swept.add(r["target"])
+                if str(r.get("mode", "")).startswith("sweep") and r.get("verdict") in ("accept", "reject"):
+                    answered[r["target"]] += 1
+        swept = {t for t, k in answered.items() if k >= MIN_ANSWERED_TO_COUNT_SWEPT}
         remaining = [n for n in names if n not in swept]
         print(f"unattempted: {len(remaining)} of {len(names)} targets not yet swept")
         if not remaining:
@@ -157,6 +161,15 @@ def main():
     else:
         names = random.Random(args.seed).sample(names, min(args.sample, len(names)))
     known, unknown = lanes(args.lanes, args.min_tier, args.skip_benched)
+    if args.max_per_provider:
+        kept, seen = [], defaultdict(int)
+        for l in sorted(known, key=lambda l: (-l["rank"], l["backend"])):   # strongest first within a provider
+            if seen[l["provider"]] < args.max_per_provider:
+                kept.append(l)
+                seen[l["provider"]] += 1
+        dropped = len(known) - len(kept)
+        known = sorted(kept, key=lambda l: (l["rank"], l["backend"]))
+        print(f"max {args.max_per_provider} lanes per provider: kept {len(known)}, dropped {dropped}")
     order = (known[::-1] if args.order == "desc" else known) + unknown
     mode = f"{'ladder' if args.stop_on_accept else 'sweep'}-{args.order}"
     t_start = time.time()
@@ -177,6 +190,7 @@ def main():
     planned_per_target = len(order) * args.attempts
     provider_lock = defaultdict(threading.Lock)          # never two workers on one provider at once
     bench = {"t": 0.0, "state": {}}
+    exhausted = {}                                       # provider → why it is parked for the rest of the run
 
     def benched(backend):
         """Router bench state, refreshed at most every 30 s. True = the router would 503 this lane now."""
@@ -238,11 +252,16 @@ def main():
                 try:
                     reply, _ = llm_chat(lane["backend"], [{"role": "user", "content": prompt}],
                                         max_tokens=args.max_tokens, temperature=0.2, system=SYSTEM,
-                                        app_name="eval:sparebrains", timeout=(10, args.call_timeout))
+                                        app_name="sparebrains", timeout=(10, args.call_timeout),
+                                        timeout_s=60)                   # router's per-attempt ceiling; 30 s default cuts slow proofs
                     err = None
                     break
                 except KumoriAPIError as e:
                     msg = str(e)
+                    if "spent its share" in msg or "is gated" in msg:
+                        with lock:                        # the router's fair-share or pool gate: done for today
+                            exhausted[lane["provider"]] = msg.split(" : ", 1)[-1][:120]
+                        return "exhausted"
                     if "is benched" in msg:
                         return "defer"                   # the router's breaker tripped since the pre-check
                     limited = e.status_code == 429 or "rate limit" in msg.lower() or "RPM spacing" in msg
@@ -320,6 +339,9 @@ def main():
             for lane in order:
                 if state["calls"] >= args.max_calls or name in solved:
                     break
+                if lane["provider"] in exhausted:
+                    skip(name, lane, 1, f"provider parked for the run: {exhausted[lane['provider']]}")
+                    continue
                 if benched(lane["backend"]):
                     skip(name, lane, 1, "lane benched by the router at the time of the ask")
                     continue
@@ -329,6 +351,9 @@ def main():
                     v = run_one(name, lane, attempt_no)
                     if v == "defer":
                         skip(name, lane, attempt_no, "router benched the lane mid-ask")
+                        break
+                    if v == "exhausted":
+                        skip(name, lane, attempt_no, f"provider parked for the run: {exhausted[lane['provider']]}")
                         break
                     if v == "accept":
                         break
@@ -352,6 +377,9 @@ def main():
                     remaining = len(work)
                 name, lane, a = item
                 key = (name, lane["backend"], a)
+                if lane["provider"] in exhausted:
+                    skip(name, lane, a, f"provider parked for the run: {exhausted[lane['provider']]}")
+                    continue
                 if benched(lane["backend"]):
                     if deferrals[key] < 3 and remaining > 0:
                         deferrals[key] += 1               # try again after the rest of the queue
@@ -360,7 +388,11 @@ def main():
                         continue
                     skip(name, lane, a, "lane benched by the router for the whole run")
                     continue
-                if run_one(name, lane, a) == "defer":
+                v = run_one(name, lane, a)
+                if v == "exhausted":
+                    skip(name, lane, a, f"provider parked for the run: {exhausted[lane['provider']]}")
+                    continue
+                if v == "defer":
                     if deferrals[key] < 3:
                         deferrals[key] += 1
                         with lock:
@@ -394,6 +426,10 @@ def main():
             per_k = round(1000 * pl["accepts"] / answered) if answered else 0
             print(f"  {b:40s} {pl['tier']:9s} {pl['accepts']:3d}/{answered:3d} answered  "
                   f"({per_k} per 1,000, {pl['errors']} errors)")
+    if exhausted:
+        print("\nproviders parked during this run (fair-share or pool gate, resets at UTC midnight):")
+        for prov, why in exhausted.items():
+            print(f"  {prov}: {why}")
     print(f"\nsite: {SITE}/runs/{run_id}")
     out = os.environ.get("GITHUB_OUTPUT")
     if out:

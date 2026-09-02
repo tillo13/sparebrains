@@ -197,6 +197,8 @@ there is no row where the pool is its own judge.
 - [ ] mathlib AI-contribution policy; Metaculus season rules. Both unverified.
 - [ ] Copilot budget → $0 on the org (Andy click).
 - [ ] The 09-01 mistral spike (§1): what drove 1,723 calls against a 52/day norm.
+- [ ] kumori cleanup, not this repo: `mistral-mistral-large-latest` and `-large-2512` 403 on the
+      primary key on every call (paid models in the free pool?); the breaker rotates keys each time.
 - [ ] kumori cleanup, not this repo: GitHub Models retired 2026-07-30; four router lanes still
       point at it (`kumori_free_llm/config.yaml` 247–262). §1 pool numbers exclude them already.
 - [x] ~~Which Lean 4 port of miniF2F~~ google-deepmind/miniF2F (Apache-2.0, corrected, the

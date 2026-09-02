@@ -45,6 +45,9 @@ on:
         description: "take the first N targets no sweep has touched yet"
         type: boolean
         default: false
+      max_per_provider:
+        description: "keep at most N lanes per provider (0 = all)"
+        default: "8"
       max_calls:
         description: "hard stop"
         default: "300"
@@ -82,7 +85,7 @@ jobs:
           if [ "$SCHEDULED" = "true" ]; then
             # nightly chunk: sweep, strong lanes, next 30 unswept targets
             python3 tools/attempt.py --sample 30 --unattempted --order asc --min-tier medium \
-              --skip-benched --jobs 2 --max-calls 1400
+              --skip-benched --jobs 2 --max-calls 1400 --max-per-provider 8
           else
             python3 tools/attempt.py \
               --sample "${{ inputs.sample }}" --seed "${{ inputs.seed }}" \
@@ -91,7 +94,8 @@ jobs:
               --max-calls "${{ inputs.max_calls }}" --jobs "${{ inputs.jobs }}" \
               ${{ inputs.min_tier != '' && format('--min-tier {0}', inputs.min_tier) || '' }} \
               ${{ inputs.skip_benched && '--skip-benched' || '' }} \
-              ${{ inputs.unattempted && '--unattempted' || '' }}
+              ${{ inputs.unattempted && '--unattempted' || '' }} \
+              --max-per-provider "${{ inputs.max_per_provider }}"
           fi
 
       - name: commit the ledger
