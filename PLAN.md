@@ -1,7 +1,7 @@
 # PLAN — sparebrAIns
 
-**Status 2026-09-02: §2 steps 1–3 are built (verifier, targets, loop). First loop run pending
-the kumori deploy that adds the attempts table. Earlier: §2 step 1 is built. The verifier runs in GitHub Actions
+**Status 2026-09-02: §2 steps 1–3 are built (verifier, targets, loop). First loop run in
+flight; first verified proof landed (`DECISIONS.md` 2026-09-02). §7 storefront gate is open. Earlier: §2 step 1 is built. The verifier runs in GitHub Actions
 (`.github/workflows/check.yml`, `tools/check.py`). Steps 2–4 of §2 each need their own
 green light. Decisions taken today: `DECISIONS.md` 2026-09-01 (evening).**
 Point-in-time: every number here was measured on the day stated; re-derive before acting.

@@ -5,6 +5,29 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **The first verified artifact exists.** Run 33582595117, target `amc12_2000_p12` (AMC 12,
+  2000, #12), accepted by the kernel from lane `mistral-devstral` (medium tier) after eighteen
+  tiny/low lanes failed it. 3.1 s model reply, 6.3 s Lean check, $0. This opens the storefront
+  gate in `PLAN.md` §7: the site and the org transfer are no longer blocked.
+- **The public site is sparebrains.kumori.ai, served by the kumori app, read-only.** Andy:
+  "all this documentation on how it works and what to click must be written on
+  sparebrains.kumori.ai so everyone knows everything about it." Pages: overview (totals,
+  latest verified proofs, runs), how it works (the full explainer), lanes (verified per 1,000
+  calls), targets (cheapest tier that solved each), a page per run, a page per attempt with the
+  full transcript. Rendered from `sparebrains_attempts`; aggregates cached 60 s. Extends
+  kumori's own `base.html` (nav, theme toggle, fonts, main.css) per Andy: "keep the style css js
+  like the current kumori.ai page." Code: `kumori/blueprints/sparebrains_site_bp.py`,
+  `kumori/templates/sparebrains/`, `kumori/static/css/sparebrains.css`.
+- **Subdomain plumbing.** DNS: CNAME `sparebrains` → `ghs.googlehosted.com` (TTL 600) on
+  kumori.ai's GoDaddy zone, written by the new `kumori/utilities/godaddy_utils.py` (creds
+  `GODADDY_API_KEY`/`GODADDY_API_SECRET` in kumori-404602 Secret Manager; the API answered 200
+  for this account). App Engine domain mapping created, managed certificate pending on DNS.
+  A WSGI middleware in kumori `main.py` maps the subdomain onto the blueprint's `/sparebrains`
+  prefix so URLs stay clean; the same pages also answer at kumori.ai/sparebrains/.
+- **Git keeps the verifiable half, Postgres keeps the whole story.** Failed attempts' transcripts
+  live only in the table by design (size); the site is the only place a human reads them.
+  Publishing raw model outputs is a provider output-use question; math with no PII is the easy
+  case, flagged, not yet read clause by clause.
 - **Step 3 shape: the loop is a GitHub job that is one more caller on the kumori router.**
   Shared client vendored via deploy.json `shared_files` like pilgrims; key in the repo secret
   `KUMORI_API_KEY`, which the client reads first. Caller attribution `app_name=eval:sparebrains`.
