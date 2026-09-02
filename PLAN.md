@@ -97,6 +97,23 @@ not imported (204 statements use formal-conjectures' `answer(...)`). Also found 
 judge's first version keyed on Lean's `sorry` warning text, which v4.33 quotes differently; it
 now reads `sorryAx` from `#print axioms`, and the reject suite is what caught it.
 
+**Step 3 measured (run 33582595117, 2026-09-02 02:18→03:07 UTC, ladder-asc, 5 targets, 66 lanes):**
+
+| item | measured |
+|---|---|
+| attempts | 137 (58 router errors = benched lanes, 16 replies with no proof, 58 Lean rejects) |
+| kernel-verified | 4, on 4 of 5 targets; `mathd_algebra_320` unsolved after all 66 lanes |
+| who solved | `mistral-devstral` (medium) ×3; `openrouter-openrouter-free` (low) ×1 |
+| by tier, accepts/attempts | tiny 0/10 · low 1/60 · medium 3/24 · high 0/26 · frontier 0/9 · untiered 0/8 |
+| per attempt | 21.4 s model call (non-error), 7.5 s Lean check |
+| yield | 29 verified per 1,000 attempts; 51 per 1,000 calls that got an answer |
+| cost | $0; ledger commit `045c9b2` carries the `Generated-by:` trailer |
+
+Read: the ladder found a solver for 4 of 5 targets inside the medium tier, so high and
+frontier lanes were only ever asked the hard one, where 21 of their 35 attempts were router
+errors (benched). Per-lane yield for the strong tiers is therefore still unmeasured; that is
+what the §7 sweep run is for. Tiny and low produced one accept in 70 attempts.
+
 ## 3. Lanes, and the substrate each one fits
 
 | lane | verifier | substrate | status |

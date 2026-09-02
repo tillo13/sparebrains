@@ -5,6 +5,12 @@ Everything NOT here is open and lives in `PLAN.md` §6.
 
 ## 2026-09-02
 
+- **Run 3 closed: 4 kernel-verified proofs on 5 sampled targets, 137 attempts, $0.** Three by
+  `mistral-devstral` (medium), one by `openrouter-openrouter-free` (low, on its 14th lane).
+  Tiny and low tiers: 1 accept in 70 attempts. High and frontier: 0 in 35, but 21 of those 35
+  were benched-lane errors on the one unsolved target, so their yield is unmeasured, not zero.
+  Numbers and the ledger commit (`045c9b2`, sparebrains-bot, `Generated-by:` trailer) in
+  `PLAN.md` §2. Next per §7: the sweep run.
 - **The first verified artifact exists.** Run 33582595117, target `amc12_2000_p12` (AMC 12,
   2000, #12), accepted by the kernel from lane `mistral-devstral` (medium tier) after eighteen
   tiny/low lanes failed it. 3.1 s model reply, 6.3 s Lean check, $0. This opens the storefront
