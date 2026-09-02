@@ -11,7 +11,7 @@ either produces something verified or is honestly discarded. Nothing false survi
 |---|---|
 | Story | a kumori.ai subdomain (planned, name open; CNAME → GitHub Pages) |
 | Code, queue, ledger | github.com/tillo13/sparebrains (public; moves to the kumori-ai org after the first verified artifact) |
-| Status 2026-09-02 | **steps 1–2 of milestone 1 built:** the verifier runs in GitHub Actions and 244 miniF2F targets type-check under it. No model has been asked anything yet. Milestone 1 is a measurement, not an engine (`PLAN.md` §2). |
+| Status 2026-09-02 | **steps 1–3 of milestone 1 built:** the loop exists but has not run yet. Earlier: the verifier runs in GitHub Actions and 244 miniF2F targets type-check under it. No model has been asked anything yet. Milestone 1 is a measurement, not an engine (`PLAN.md` §2). |
 
 ## Read in this order
 1. `DECISIONS.md`: what's settled, dated, with receipts. Don't re-litigate.

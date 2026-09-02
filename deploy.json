@@ -3,5 +3,15 @@
   "app_name": "sparebrains",
   "github_repo": "https://github.com/tillo13/sparebrains.git",
   "git_only": true,
-  "private_repo": false
+  "private_repo": false,
+  "shared_files": [
+    {
+      "src": "kumori/shared/kumori_api_client/__init__.py",
+      "dst": "utilities/kumori_api_client/__init__.py"
+    },
+    {
+      "src": "kumori/shared/kumori_api_client/client.py",
+      "dst": "utilities/kumori_api_client/client.py"
+    }
+  ]
 }

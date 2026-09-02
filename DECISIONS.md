@@ -3,6 +3,32 @@
 Dated, with receipts. Re-open one only with new evidence; otherwise it stands.
 Everything NOT here is open and lives in `PLAN.md` §6.
 
+## 2026-09-02
+
+- **Step 3 shape: the loop is a GitHub job that is one more caller on the kumori router.**
+  Shared client vendored via deploy.json `shared_files` like pilgrims; key in the repo secret
+  `KUMORI_API_KEY`, which the client reads first. Caller attribution `app_name=eval:sparebrains`.
+- **Router key minted for `sparebrains`:** `kumori_api_keys` id 62, prefix `kmr_live_28aa147`,
+  scopes `llm.chat, llm.read, catalog.read, sparebrains.write`, owner key, tier experiment,
+  cap 2000 (telemetry only for owner keys). Plaintext lives only in kumori-404602 Secret Manager
+  as `SPAREBRAINS_KUMORI_API_KEY` (same naming as PILGRIMS_/KINDNESS_) and in the repo secret.
+- **Lanes are walked by quality tier, Andy's ladder.** The router labels every lane
+  tiny/low/medium/high/frontier. `--order asc --stop-on-accept` asks the cheapest brains first
+  and stops a target at its first kernel-verified proof, so the ledger records the lowest tier
+  that solved it. `--order desc` reverses; without `--stop-on-accept` every lane gets every
+  target (the per-lane yield measurement). Both are the same script.
+- **Show your work: every attempt's full transcript goes to Postgres.** Table
+  `sparebrains_attempts` on the shared instance, owned by `kumori/blueprints/sparebrains_bp.py`,
+  written through `POST /api/v1/sparebrains/attempt` (scope `sparebrains.write`), because the
+  runner must never reach Cloud SQL directly. Columns include prompt, response, extracted proof,
+  the exact file handed to Lean, and Lean's output. Git keeps the compact ledger
+  (`ledger/<set>/<run_id>.jsonl`) and every accepted proof whole (`verified/<set>/<target>/<lane>.lean`).
+  The DB post is fire-and-forget so a telemetry outage never stops a run.
+- **Ledger commits carry the `Generated-by:` trailer** (lanes, verifier, cost $0) per the
+  attribution-inversion rule; the workflow commits as `sparebrains-bot`.
+- **Hard guards on the loop:** `--max-calls` stop, one progress line per call in the job log,
+  1 s pacing between router calls, 180 s per call, 300 s per Lean check, first run watched.
+
 ## 2026-09-01 (evening)
 
 - **Nothing runs locally. All cloud.** Arm B (a prover model on the ROG GPU) is dropped and the

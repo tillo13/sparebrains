@@ -1,0 +1,79 @@
+# Step 3 of PLAN.md §2: the loop. The free pool proposes, the kernel disposes, the
+# ledger remembers. Manual trigger only; the nightly schedule is step 4.
+name: attempt
+
+on:
+  workflow_dispatch:
+    inputs:
+      sample:
+        description: "how many targets (seeded sample)"
+        default: "5"
+      seed:
+        default: "1"
+      order:
+        description: "walk lanes by tier: asc = tiny first, desc = frontier first"
+        type: choice
+        options: [asc, desc]
+        default: asc
+      stop_on_accept:
+        description: "ladder mode: stop a target at its first verified proof"
+        type: boolean
+        default: true
+      lanes:
+        description: "comma-separated backend names; empty = every live lane"
+        default: ""
+      attempts:
+        default: "1"
+      max_calls:
+        description: "hard stop"
+        default: "300"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: attempt
+  cancel-in-progress: false
+
+jobs:
+  attempt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: python deps
+        run: python3 -m pip install -q requests
+
+      - name: lean + mathlib cache + build
+        uses: leanprover/lean-action@v1.6.0
+        with:
+          auto-config: false
+          build: true
+          use-mathlib-cache: true
+
+      - name: run the loop
+        id: run
+        env:
+          KUMORI_API_KEY: ${{ secrets.KUMORI_API_KEY }}
+        run: |
+          python3 tools/attempt.py \
+            --sample "${{ inputs.sample }}" --seed "${{ inputs.seed }}" \
+            --order "${{ inputs.order }}" ${{ inputs.stop_on_accept && '--stop-on-accept' || '' }} \
+            --lanes "${{ inputs.lanes }}" --attempts "${{ inputs.attempts }}" \
+            --max-calls "${{ inputs.max_calls }}"
+
+      - name: commit the ledger
+        if: always() && steps.run.outcome != 'skipped'
+        run: |
+          git config user.name "sparebrains-bot"
+          git config user.email "sparebrains-bot@users.noreply.github.com"
+          git add ledger verified
+          if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi
+          git commit -q -F - <<MSG
+          attempt run ${{ github.run_id }}: ${{ steps.run.outputs.calls }} calls, ${{ steps.run.outputs.accepts }} accepts, ${{ steps.run.outputs.mode }}
+
+          Generated-by: kumori free-LLM pool (${{ steps.run.outputs.lanes }} lanes) via tools/attempt.py; verifier Lean v4.33.1 + mathlib v4.33.1 (tools/check.py); cost \$0
+          MSG
+          git pull -q --rebase origin main
+          git push -q origin HEAD:main
