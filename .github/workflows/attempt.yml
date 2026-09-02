@@ -77,7 +77,6 @@ jobs:
         id: run
         env:
           KUMORI_API_KEY: ${{ secrets.KUMORI_API_KEY }}
-        env:
           SCHEDULED: ${{ github.event_name == 'schedule' }}
         run: |
           if [ "$SCHEDULED" = "true" ]; then
