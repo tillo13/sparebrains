@@ -13,6 +13,17 @@ Everything NOT here is open and lives in `PLAN.md` §6.
   that plays like a game, and prints live numbers from `kumori_llm_daily_caps` and
   `kumori_llm_quality_samples`: calls yesterday, today and ever per app, graded replies, and each
   app's share of today's pool as an equation. Nothing retired; both sites linked.
+- **Defect, found by the first ladder job: the client package did not export the new functions.**
+  `kumori_api_client/__init__.py` re-exports names explicitly and listed only `sparebrains_attempt`
+  and `sparebrains_summary`, so the loop's guarded imports of `sparebrains_heartbeat` and
+  `sparebrains_previous` fell through to their stubs: run 33652466778 posted 146 attempts in its
+  first 18 minutes and not one heartbeat, and its repair tries in later jobs would have run cold.
+  The harness could not see it because it monkeypatched the functions after import. Fix: both names
+  exported; the loop now prints a WARNING at start and into the step summary whenever a checkout's
+  client lacks a function, so a silent degradation of this kind is loud next time. The running job
+  keeps its old checkout; the next chained job has the fix. Also seen in that job's first minutes:
+  `openrouter-minimax-m3`, an untiered lane the old floor excluded, at 68 accepts in 137 answers
+  across primer, MIL and MATH L2–L3; primer 38 of 60 answered so far, MIL 26 of 65.
 - **Beyond the solved problems: the shape of Phase C (evening, `PLAN.md` §7 items 9–15).** Andy's
   thread: the donation line is premature (parked); our lanes will not solve open problems on their
   own; the value is showing the work so a mathematician can pick it up, feed it to their own agent

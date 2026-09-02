@@ -29,14 +29,17 @@ from check import judge                                              # the judge
 from ladder import rung_of, failure_kind, sort_key, RUNGS
 from utilities.kumori_api_client import (KumoriAPIError, init as kumori_init, llm_backends, llm_backoff_state,
                                          llm_chat, sparebrains_attempt)
-try:                                                                  # the clock on the site; older vendored clients lack it
+MISSING = []                                                          # client functions this checkout lacks: said out loud, never silent
+try:                                                                  # the clock on the site
     from utilities.kumori_api_client import sparebrains_heartbeat
 except ImportError:
+    MISSING.append("sparebrains_heartbeat (the site's clock and Right-now box will stay empty)")
     def sparebrains_heartbeat(row):
         return None
-try:                                                                  # what a repair try is told; older vendored clients lack it
+try:                                                                  # what a repair try is told
     from utilities.kumori_api_client import sparebrains_previous
 except ImportError:
+    MISSING.append("sparebrains_previous (repair tries would run cold; they are labeled cold when that happens)")
     def sparebrains_previous(target_set, target, backend):
         return None
 
@@ -229,6 +232,12 @@ def main():
 
     if not os.environ.get("KUMORI_API_KEY"):
         sys.exit("KUMORI_API_KEY is not set")
+    for m in MISSING:
+        print(f"WARNING: the vendored kumori client lacks {m}; run 2026-09-02's __init__ export fix through `deploy`", flush=True)
+        summary = os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary:
+            with open(summary, "a") as fh:
+                fh.write(f"> **WARNING:** vendored client lacks {m}\n\n")
     kumori_init(min_inter_call_sec=args.pace)
     run_id = os.environ.get("GITHUB_RUN_ID") or datetime.now(timezone.utc).strftime("local-%Y%m%dT%H%M%S")
     tdir = ROOT / args.targets
