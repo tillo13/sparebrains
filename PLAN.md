@@ -73,6 +73,21 @@ With Arm B dropped only rows 1 and 3 remain. Step order (2026-09-01 evening): (1
 checker in Actions, (2) the miniF2F Lean 4 target set, pinned to the same mathlib, (3) the
 propose→check→ledger loop in the same job, (4) nightly schedule for a week.
 
+**Step 1 measured (run 33577335558, 2026-09-02 00:56 UTC, public-repo `ubuntu-latest`):**
+
+| item | measured |
+|---|---|
+| whole job | 2 min 47 s |
+| elan + mathlib cache (8,690 files, 6.5 GB) + `lake build` | 2 min 17 s |
+| one check (`lake env lean` incl. `import Mathlib`) | 4.6–7.1 s |
+| peak RSS of one check | 6.6 GB |
+| runner | 4 vCPU, 15 GiB RAM, 145 GB disk (75 GB free after mathlib) |
+| verdicts | 2 accept, 3 reject, all as expected; `sorryAx` and a smuggled `axiom` both caught |
+| cost | $0 |
+
+Read: ~5 s per check means a few hundred attempts per job without a resident Lean server.
+The 6.6 GB peak rules out the private-repo 8 GB runner; public was the right call.
+
 ## 3. Lanes, and the substrate each one fits
 
 | lane | verifier | substrate | status |

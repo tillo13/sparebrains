@@ -46,6 +46,10 @@ Everything NOT here is open and lives in `PLAN.md` §6.
   targets. The propose→check loop is plain Python.
 - **Two live kumori API keys were scrubbed from `PLAN.md` §1** before the repo went public.
   They had been pasted as caller labels; `kumori_free_llms.py:235` shows they are keys.
+- **Step 1 is green.** `tillo13/sparebrains` run 33577335558: 2 min 47 s end to end, 4.6–7.1 s
+  per check with `import Mathlib`, 6.6 GB peak RSS, 6.5 GB mathlib cache, $0. Two accepts
+  accepted; a `sorry`, a smuggled `axiom`, and a false statement all refused for the stated
+  reasons. Numbers in `PLAN.md` §2. Steps 2–4 remain gated.
 
 ## 2026-09-01
 
