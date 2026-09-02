@@ -264,12 +264,45 @@ three tries, 24/7); kept for the record.
 7. ~~Lean's error fed back for a second attempt~~ done 2026-09-02 (repair tries, `DECISIONS.md`).
 8. ~~Skip lanes the router has already benched~~ done: benched cells stay owed; statement identity by construction.
 
-**Phase C: open problems**
-9. Second target set from google-deepmind/formal-conjectures (same mathlib pin); targets
-   page shows both sets.
-10. The counterexample hunt with plain checkers (§3 lane 3) — fallback if Lean yield ≈ 0.
-11. Submission path with a human in it: vibemathed.com, erdosproblems.com forum. Never an
-    automated mathlib PR (§5).
+**Phase C: open problems** (rewritten 2026-09-02 evening; each step gated on the one before)
+9. **Grade pass one.** When every cell has its first try (about ten days at the 2026-09-02 pace),
+   read the primer row and the MATH-level columns against the prediction on record
+   (`DECISIONS.md` 2026-09-02, "Expected shape"). Decides whether tiny/low lanes stay in the roster
+   and whether the token cap moves. Nothing below starts before this is written down.
+10. **Sources page and reference ingestion.** A page listing where solved work lives (mathlib,
+    NuminaMath-LEAN's human proofs, the prover labs' released proof sets, miniF2F-v2 when its
+    proofs ship). Every public proof of a problem we hold is re-checked under our mathlib pin and
+    stored as that problem's reference: proof the rung is provable, and a misformalization tripwire
+    (a published proof that fails under our statement means the statements differ).
+11. **The no-contamination line.** A known proof of problem X never enters a prompt for X. What may
+    enter, each as a labeled try mode on the chart beside cold and repair: retrieved mathlib lemma
+    statements; a few of our own kernel-accepted proofs of *other* problems on the same rung; the
+    kernel's error (shipped). The retrieval-assisted mode runs only on cells still owed after cold
+    and repair, so the clean measurement stays clean.
+12. **The per-problem folder, standard fixed before the first open problem lands** (Tao: "much
+    easier to modify a standard early"). Per problem: the statement with its informal source and
+    a human audit line (who checked the formalization, when); kernel-accepted proofs and lemmas
+    extracted from failed attempts and re-checked standalone; attempts complete except for `sorry`,
+    with each remaining goal printed by Lean and ranked by how few and how simple; counterexamples;
+    a dead-end catalog generated from the ledger (lemma families and tactics tried, how each
+    failed, how often); a prompt pack (statement, best partial, remaining goals, dead ends) for a
+    mathematician's own agent. Transcripts linked, never featured.
+13. **The scout, in kumori.** Per problem, search the informal literature (arXiv, MathOverflow,
+    Zulip, the web) and the formal world (mathlib names via loogle/LeanSearch, Lean repos on GitHub,
+    formal-conjectures, the Equational Theories Project) together and write a sourced related-work
+    page into the folder. Link-first: only things it fetched, every claim linked, summaries labeled
+    machine-written and counted as nothing. "Found in the literature" is a folder status distinct
+    from "new proof" (the October 2025 Erdős episode is the cost of blurring them). Runs before any
+    lane is asked, so lanes and humans start from the same page.
+14. **Second target set: google-deepmind/formal-conjectures**, Erdős subset first, because
+    erdosproblems.com already runs an AI-contributions wiki to plug the folders into. One GitHub
+    issue per open problem, claimable, with misformalization reports as the first kind of ticket.
+15. **License the record.** Read each provider's output-use terms (§6), then Apache-2.0 on
+    `ledger/` and `verified/`, and the dataset (model, problem, try, mode, verdict, failure kind,
+    transcript, repair pairs) becomes the "for good" artifact others can work off.
+The counterexample hunt with plain checkers (§3 lane 3) stays the fallback if Lean yield on open
+problems is zero after 13. The human-in-the-loop submission paths (vibemathed.com, erdosproblems.com
+forum) apply from 14 on; never an automated mathlib PR (§5).
 
 **Phase D: the public product**
 12. Transfer the repo to kumori-ai (history intact).

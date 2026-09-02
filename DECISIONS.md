@@ -13,6 +13,21 @@ Everything NOT here is open and lives in `PLAN.md` §6.
   that plays like a game, and prints live numbers from `kumori_llm_daily_caps` and
   `kumori_llm_quality_samples`: calls yesterday, today and ever per app, graded replies, and each
   app's share of today's pool as an equation. Nothing retired; both sites linked.
+- **Beyond the solved problems: the shape of Phase C (evening, `PLAN.md` §7 items 9–15).** Andy's
+  thread: the donation line is premature (parked); our lanes will not solve open problems on their
+  own; the value is showing the work so a mathematician can pick it up, feed it to their own agent
+  and their own brain, and validate what a non-mathematician cannot; ingest others' solved work so
+  nothing is reinvented; a registry of where that work lives; a web-and-formal scout via kumori.
+  Precedents checked (deep-search): the Equational Theories Project (Tao, 2024; per-problem status,
+  issues claimed and merged by PR, amateurs contributing modular pieces, machine results dominant
+  but humans finding special cases first, standards fixed early), formal-conjectures (2,615
+  statements, about 1,029 open, explicit warning on formalization accuracy), and the Erdős
+  problems since October 2025 (GPT-5's "10 solved" were literature finds; about 100 problems moved
+  to solved with AI help by February 2026; first credited novel AI solution January 2026;
+  erdosproblems.com runs an AI-contributions wiki). Three rules fixed now: a known proof of X never
+  enters a prompt for X, and every assisted condition is a labeled try mode; the per-problem folder
+  standard is set before the first open problem lands; the scout is link-first and its summaries
+  count as nothing. Timing: nothing in Phase C starts before pass one is graded.
 - **Repair tries: the second and third try of a cell talk to the checker.** Andy, asked what he
   would want next, "ok do it". A cell's first try is *cold* (the file and nothing else). When it
   was rejected, tries two and three are *repair* tries: the lane is shown its own proof and the
