@@ -4,4 +4,4 @@ import Mathlib
 theorem primer_power_07_mul_pow (a b n : ℕ) : (a * b) ^ n = a ^ n * b ^ n := by
   induction n with
   | zero => simp
-  | succ n ih => simp [pow_succ, ih, mul_assoc, mul_comm, mul_left_comm]
+  | succ n ih => simp [pow_succ, ih, Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm]
