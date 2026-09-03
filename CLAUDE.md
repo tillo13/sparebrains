@@ -8,7 +8,7 @@ Idle free-tier compute → machine-verified public artifacts. Read `DECISIONS.md
   the verifier in GitHub Actions, was green-lit and built 2026-09-01. The first deliverable is
   a measurement, not an engine.
 - **Free-lane only.** Paid Claude "Reserve" is off limits here without explicit written
-  permission each time (the kumori `CLAUDE.md` invariant). Every run carries a $0 receipt.
+  permission each time (the kumori `CLAUDE.md` invariant). Every run's commit names the pool and the verifier versions.
 - **The kernel is the judge.** A result exists only if the verifier accepted it. No
   LLM-judged "verified". No proofs graded by eye.
 - **Attribution inversion (scoped exception to the global no-AI-attribution rule).** Engine

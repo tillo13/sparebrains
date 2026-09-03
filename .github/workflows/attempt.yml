@@ -115,7 +115,7 @@ jobs:
           git commit -q -F - <<MSG
           attempt run ${{ github.run_id }}: ${{ steps.run.outputs.calls }} calls, ${{ steps.run.outputs.accepts }} accepts, ${{ steps.run.outputs.mode }}, ${{ steps.run.outputs.remaining }} cells left
 
-          Generated-by: kumori free-LLM pool (${{ steps.run.outputs.lanes }} lanes) via tools/attempt.py; verifier Lean v4.33.1 + mathlib v4.33.1 (tools/check.py); cost \$0
+          Generated-by: kumori free-LLM pool (${{ steps.run.outputs.lanes }} lanes) via tools/attempt.py; verifier Lean v4.33.1 + mathlib v4.33.1 (tools/check.py)
           MSG
           git pull -q --rebase origin main
           git push -q origin HEAD:main

@@ -89,7 +89,7 @@ honest part: free-tier models are spare parts, and the verifier is what makes th
 ## Money
 No money flows through this project. Prizes won by contributors are theirs; anything paid to
 the org's own accounts is donated to a named recipient and logged here. The org never funds
-prizes itself. Every run costs $0 and says so in its commit.
+prizes itself. Every run's commit names the pool, the lane count and the verifier versions.
 
 ## License
 Apache-2.0 (`LICENSE`): the license of mathlib, of both target sets, and of the Lean proof

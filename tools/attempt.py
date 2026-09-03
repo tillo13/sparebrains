@@ -712,7 +712,7 @@ def main():
         with open(summary, "a") as fh:
             fh.write(f"### attempt run `{run_id}` — {mode}: {calls} calls, {accepts} verified, "
                      f"{state['errors']} lane errors, {state['skipped']} skipped as benched, "
-                     f"{state['waits']} rate-limit waits, {len(solved)}/{len(names)} targets solved, $0 · "
+                     f"{state['waits']} rate-limit waits, {len(solved)}/{len(names)} targets solved · "
                      f"[every transcript]({SITE}/runs/{run_id})\n\n")
             if args.ladder:
                 fh.write(f"{remaining} cells left for the next job.\n\n| rung | verified | answered | targets proved by someone |\n|---|---|---|---|\n")

@@ -46,8 +46,12 @@ Everything NOT here is open and lives in `PLAN.md` §6.
     generator's terms; WildChat and NVIDIA's sets keep a permissive license and name the generator per row.
     This record does the latter, with the two groups also removed from the caller because the enforcement
     surface is the account, and the account is the shared kumori router.
-  - Not yet read: Vercel AI Gateway, four lanes onboarded 2026-09-02 (the same MiniMax, Laguna and Ling
-    weights, whose licenses are above); the gateway's own terms are the open item, and it has no rows yet.
+  - Vercel AI Gateway (four lanes onboarded 2026-09-02, the same MiniMax, Laguna and Ling weights): read the
+    same evening. Vercel's Terms of Service define "Your Content" as what you submit, say nothing about output
+    ownership beyond your responsibility for it, carry no benchmark or compete clause, and hand the models
+    themselves to "the applicable third-party provider" and its terms. On a Hobby or trial Pro plan Vercel may
+    use Your Content for model training and share it with providers (its right, not a restriction on the record);
+    `disallowPromptTraining` routes only to non-training providers. Stays, same footing as GMICloud and Novita.
   - Community read (deep-search, 4 threads, two on topic): r/LocalLLaMA 17vbg1f (49 comments) and
     r/MachineLearning 123oovw (32 comments) both land on "enforceable? no; can they ban the account? yes",
     and on companies refusing NC-tainted sets. Neither changes the decision.
