@@ -1,0 +1,7 @@
+import Mathlib
+
+/-- Natural Number Game (Lean 4), Addition world, level 3: add_comm (level boss). Restated over Mathlib's ℕ. Source: https://github.com/leanprover-community/NNG4/blob/main/Game/Levels/Addition/L03add_comm.lean, Apache-2.0. -/
+theorem primer_addition_03_add_comm (a b : ℕ) : a + b = b + a := by
+  induction a with
+  | zero => rw [Nat.add_zero, Nat.zero_add]
+  | succ d hd => rw [Nat.add_succ, Nat.succ_add, hd, Nat.add_succ]
