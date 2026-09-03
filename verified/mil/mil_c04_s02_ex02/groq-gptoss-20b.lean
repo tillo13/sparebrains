@@ -7,5 +7,5 @@ open Set
 theorem mil_c04_s02_ex02 {α β : Type*} (f : α → β) (s : Set α) (h : Injective f) : f ⁻¹' (f '' s) ⊆ s := by
   intro x hx
   rcases hx with ⟨y, hy, hfy⟩
-  have hyx : y = x := h hfy
-  simpa [hyx] using hy
+  have : y = x := h hfy
+  simpa [this] using hy

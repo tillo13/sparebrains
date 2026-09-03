@@ -7,6 +7,6 @@ open scoped Real
 theorem mathd_algebra_143 (f g : ℝ → ℝ) (h₀ : ∀ x, f x = x + 1) (h₁ : ∀ x, g x = x ^ 2 + 3) :
     f (g 2) = 8 := by
   calc
-    f (g 2) = g 2 + 1 := by simpa using h₀ (g 2)
+    f (g 2) = g 2 + 1 := h₀ (g 2)
     _ = (2 ^ 2 + 3) + 1 := by simpa [h₁ 2]
     _ = 8 := by norm_num

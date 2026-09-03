@@ -4,6 +4,4 @@ import Mathlib
 theorem primer_multiplication_02_zero_mul (m : ℕ) : 0 * m = 0 := by
   induction m with
   | zero => rfl
-  | succ n ih =>
-    rw [Nat.mul_succ]
-    rw [ih]
+  | succ n ih => simp [ih]
