@@ -2,7 +2,9 @@ import Mathlib
 
 /-- Mathematics in Lean, Chapter 3 §2 (The Existential Quantifier), exercise 4. Avigad & Massot, Apache-2.0, commit dd6d752. -/
 theorem mil_c03_s02_ex04 {a b c : ℕ} (divab : a ∣ b) (divbc : b ∣ c) : a ∣ c := by
-  obtain ⟨k1, h1⟩ := divab
-  obtain ⟨k2, h2⟩ := divbc
-  use k1 * k2
-  rw [h2, h1, Nat.mul_assoc]
+  obtain ⟨k, hk⟩ := divab
+  obtain ⟨l, hl⟩ := divbc
+  use k * l
+  calc
+    c = b * l := hl
+    _ = a * (k * l) := by rw [hk, mul_assoc]

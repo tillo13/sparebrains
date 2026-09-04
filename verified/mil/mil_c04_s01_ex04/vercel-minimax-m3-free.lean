@@ -5,4 +5,5 @@ open Set
 /-- Mathematics in Lean, Chapter 4 §1 (Sets), exercise 4. Avigad & Massot, Apache-2.0, commit dd6d752. -/
 theorem mil_c04_s01_ex04 {α : Type*} (s t : Set α) : s ∩ (s ∪ t) = s := by
   ext x
-  exact ⟨fun h => h.1, fun h => ⟨h, Or.inl h⟩⟩
+  simp [Set.mem_inter_iff, Set.mem_union]
+  tauto

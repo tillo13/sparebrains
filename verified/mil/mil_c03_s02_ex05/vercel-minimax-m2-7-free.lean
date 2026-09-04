@@ -2,4 +2,7 @@ import Mathlib
 
 /-- Mathematics in Lean, Chapter 3 §2 (The Existential Quantifier), exercise 5. Avigad & Massot, Apache-2.0, commit dd6d752. -/
 theorem mil_c03_s02_ex05 {a b c : ℕ} (divab : a ∣ b) (divac : a ∣ c) : a ∣ b + c := by
-  exact Nat.dvd_add divab divac
+  rcases divab with ⟨k, rfl⟩
+  rcases divac with ⟨l, rfl⟩
+  rw [← mul_add a k l]
+  exact dvd_mul_right a (k + l)

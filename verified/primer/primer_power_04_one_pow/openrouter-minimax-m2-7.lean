@@ -4,4 +4,4 @@ import Mathlib
 theorem primer_power_04_one_pow (m : ℕ) : (1 : ℕ) ^ m = 1 := by
   induction m with
   | zero => rw [pow_zero]
-  | succ n ih => rw [pow_succ, ih, mul_one]
+  | succ n ih => rw [pow_succ, ih, one_mul]

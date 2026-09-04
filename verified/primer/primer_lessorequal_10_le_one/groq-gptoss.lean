@@ -4,13 +4,11 @@ import Mathlib
 theorem primer_lessorequal_10_le_one (x : ℕ) (hx : x ≤ 1) : x = 0 ∨ x = 1 := by
   cases x with
   | zero =>
-      left
-      rfl
+      exact Or.inl rfl
   | succ x' =>
-      have hle : Nat.succ x' ≤ 1 := hx
-      have hle' : Nat.succ x' ≤ Nat.succ 0 := by
-        simpa using hle
-      have hx0le : x' ≤ 0 := (Nat.succ_le_succ_iff).mp hle'
-      have hx0 : x' = 0 := Nat.le_antisymm hx0le (Nat.zero_le _)
-      right
-      simpa [hx0]
+      have hle : Nat.succ x' ≤ Nat.succ 0 := by
+        simpa using hx
+      have hle' : x' ≤ 0 := (Nat.succ_le_succ_iff).mp hle
+      have hx0 : x' = 0 := Nat.le_antisymm hle' (Nat.zero_le _)
+      exact Or.inr (by
+        simpa [hx0])
