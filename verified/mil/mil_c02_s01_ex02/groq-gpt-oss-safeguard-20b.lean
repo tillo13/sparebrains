@@ -8,4 +8,4 @@ theorem mil_c02_s01_ex02 (a b c : ℝ) : a * (b * c) = b * (a * c) := by
     _ = (b * a) * c := by
       simpa [mul_comm]
     _ = b * (a * c) := by
-      simpa using (mul_assoc b a c)
+      simpa using mul_assoc b a c

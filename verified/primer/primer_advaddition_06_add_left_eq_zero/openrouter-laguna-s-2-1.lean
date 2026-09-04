@@ -1,0 +1,14 @@
+import Mathlib
+
+/-- Natural Number Game (Lean 4), AdvAddition world, level 6: add_left_eq_zero. Restated over Mathlib's ℕ. Source: https://github.com/leanprover-community/NNG4/blob/main/Game/Levels/AdvAddition/L06add_left_eq_zero.lean, Apache-2.0. -/
+theorem primer_advaddition_06_add_left_eq_zero (a b : ℕ) : a + b = 0 → b = 0 := by
+  induction a with
+  | zero =>
+    intro h
+    rw [Nat.zero_add] at h
+    exact h
+  | succ a' ih =>
+    intro h
+    rw [Nat.succ_add] at h
+    have contra : False := Nat.succ_ne_zero (a' + b) h
+    exact False.elim contra

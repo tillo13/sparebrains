@@ -6,7 +6,7 @@ open Set
 theorem mil_c04_s01_ex05 {α : Type*} (s t : Set α) : s ∪ s ∩ t = s := by
   ext x
   constructor
-  · rintro (hxs | hxst)
-    · exact hxs
-    · exact hxst.1
-  · exact fun hxs => Or.inl hxs
+  · rintro (h | ⟨h, _⟩)
+    · exact h
+    · exact h
+  · exact fun h => Or.inl h

@@ -4,5 +4,5 @@ import Mathlib
 theorem mil_c03_s03_ex04 (a b : ℝ) (f : ℝ → ℝ) (h : a ≤ b) (h' : f b < f a) : ¬Monotone f := by
   intro hf
   have hle : f a ≤ f b := hf h
-  have hnot : ¬ f a ≤ f b := not_le_of_gt h'
-  exact hnot hle
+  have hlt : f b < f b := lt_of_lt_of_le h' hle
+  exact (lt_irrefl _ hlt)
