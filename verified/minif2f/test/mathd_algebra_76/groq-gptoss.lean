@@ -11,5 +11,5 @@ n^2 - 4n - 1 & \text{ if }n\text{ is even}.
 \right.\]Find $f(f(f(f(f(4)))))$. -/
 theorem mathd_algebra_76 (f : ℤ → ℤ) (h₀ : ∀ n, Odd n → f n = n ^ 2)
     (h₁ : ∀ n, Even n → f n = n ^ 2 - 4 * n - 1) : f 4 = -1 := by
-  have h_even : Even (4 : ℤ) := by decide
-  simpa [pow_two] using h₁ 4 h_even
+  have h4 : Even (4 : ℤ) := by decide
+  simpa [h₁ 4 h4] using (by norm_num : (4 : ℤ) ^ 2 - 4 * 4 - 1 = -1)

@@ -4,6 +4,5 @@ import Mathlib
 theorem mil_c02_s01_ex06 (a b c d : ℝ) (hyp : c = b * a - d) (hyp' : d = a * b) : c = 0 := by
   calc
     c = b * a - d := hyp
-    _ = a * b - d := by simpa [mul_comm]
-    _ = a * b - a * b := by simpa [hyp']
+    _ = b * a - a * b := by simpa [hyp']
     _ = 0 := by ring

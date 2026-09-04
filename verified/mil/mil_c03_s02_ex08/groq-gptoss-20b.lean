@@ -8,4 +8,4 @@ theorem mil_c03_s02_ex08 {α : Type*} {β : Type*} {γ : Type*} {g : β → γ} 
   rcases surjg y with ⟨b, hb⟩
   rcases surjf b with ⟨a, ha⟩
   refine ⟨a, ?_⟩
-  simpa [ha] using hb
+  simp [ha, hb]
