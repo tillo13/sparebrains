@@ -20,6 +20,7 @@ verified/.
 """
 import argparse, hashlib, json, os, random, re, sys, threading, time
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,6 +50,7 @@ RUNNER_PATH = re.compile(r"\S*/\.lake/attempts/\S+?\.lean:")     # keep "line:co
 MIN_ANSWERED_TO_COUNT_SWEPT = 8   # a target is "swept" only once this many lanes actually answered it
 SITE = "https://sparebrains.kumori.ai"
 FENCE = re.compile(r"```(?:lean4?)?\s*\n(.*?)```", re.S)
+BARE_BY = re.compile(r"^by\b(.*)$", re.S)
 SYSTEM = ("You are an expert in Lean 4 and Mathlib. You complete formal proofs. "
           "You answer with code only.")
 EXAMPLE = ("import Mathlib\n\n/-- A demonstration, not a target. -/\n"
@@ -144,7 +146,13 @@ def extract_proof(reply, name):
             return None
         proof = text[sep.end():]
     elif not blocks or "theorem " in text or "import " in text:
-        return None                                  # prose, a different theorem, or an echoed preamble
+        # A common otherwise-valid answer is a bare `by ...` tactic block without a Markdown
+        # fence. It is safe to recover this narrow shape: Lean still receives the exact original
+        # statement and remains the only judge. Do not try to mine a `by` from prose.
+        bare = BARE_BY.match(text.strip())
+        if not bare:
+            return None                              # prose, a different theorem, or an echoed preamble
+        proof = bare.group(1)
     else:
         proof = text                                 # a fenced bare tactic block
     lines = proof.strip("\n").splitlines()
@@ -235,7 +243,7 @@ def main():
     ap.add_argument("--lanes", default="", help="comma-separated backend names (default: every live lane)")
     ap.add_argument("--min-tier", choices=list(TIER_RANK), default=None, help="drop lanes below this tier")
     ap.add_argument("--skip-benched", action="store_true", help="drop lanes the router currently refuses")
-    ap.add_argument("--jobs", type=int, default=1, help="parallel attempts in sweep mode (ladder is sequential)")
+    ap.add_argument("--jobs", type=int, default=1, help="parallel attempts; ladder preserves queue order while workers overlap calls")
     ap.add_argument("--max-per-provider", type=int, default=0,
                     help="keep at most N lanes per provider, highest tier first (0 = all); the Mistral list is 28 aliases of a few models")
     ap.add_argument("--order", choices=["asc", "desc"], default="asc")
@@ -303,6 +311,8 @@ def main():
     if args.ladder:
         order = sorted(known, key=lambda l: (-l["rank"], l["backend"])) + unknown     # strongest first, untiered last
         mode = f"ladder-x{args.attempts}"
+    lane_manifest = [{k: l[k] for k in ("backend", "provider", "model", "tier", "rank")} for l in order]
+    lane_roster_sha = hashlib.sha256(json.dumps(lane_manifest, sort_keys=True).encode()).hexdigest()[:12]
     t_start = time.time()
     print(f"run {run_id}: {len(names)} targets × {len(order)} lanes × {args.attempts} attempts, "
           f"mode {mode}, cap {args.max_calls} calls")
@@ -317,6 +327,45 @@ def main():
     tmpdir = ROOT / ".lake" / "attempts"
     tmpdir.mkdir(parents=True, exist_ok=True)
     lock = threading.Lock()
+    # The git ledger is the durable record and is written synchronously. The site transcript and
+    # heartbeat posts are useful telemetry, but must not make every model/Lean attempt wait on an
+    # HTTP round trip. Bound the queue so a slow site cannot consume unbounded runner memory; it
+    # drains before the job exits, preserving the public transcript record.
+    telemetry = ThreadPoolExecutor(max_workers=2, thread_name_prefix="sparebrains-telemetry")
+    telemetry_slots = threading.BoundedSemaphore(32)
+    telemetry_futures = []
+
+    def submit_telemetry(fn, *fn_args):
+        telemetry_slots.acquire()
+        future = telemetry.submit(fn, *fn_args)
+        future.add_done_callback(lambda _: telemetry_slots.release())
+        with lock:
+            telemetry_futures.append(future)
+        return future
+
+    def drain_telemetry():
+        with lock:
+            futures = list(telemetry_futures)
+        for future in futures:
+            try:
+                future.result()
+            except Exception as e:
+                print(f"telemetry worker failed: {type(e).__name__}: {e}", flush=True)
+        telemetry.shutdown(wait=True)
+
+    def previous_id(prev):
+        """Resolve a background transcript insert only when a repair row needs its parent id."""
+        if not prev:
+            return None
+        future = prev.get("telemetry_future")
+        if future:
+            try:
+                saved = future.result(timeout=35) or {}
+                if saved.get("id"):
+                    prev["id"] = saved["id"]
+            except Exception as e:
+                print(f"previous transcript id unavailable: {type(e).__name__}: {e}", flush=True)
+        return prev.get("id")
     state = {"calls": 0, "accepts": 0, "errors": 0, "skipped": 0, "waits": 0}
     solved = {}
     per_target = {n: {"done": 0, "accepts": 0, "errors": 0, "lanes": []} for n in names}
@@ -343,9 +392,8 @@ def main():
         with lock:
             with ledger_for(row["target_set"]).open("a") as fh:
                 fh.write(json.dumps(row) + "\n")
-        saved = sparebrains_attempt({**row, "prompt": prompt, "response": reply, "proof": proof,
-                                     "candidate": candidate, "lean_output": lean_out}) or {}
-        return (f"  {SITE}/attempts/{saved['id']}" if saved.get("id") else ""), saved.get("id")
+        return submit_telemetry(sparebrains_attempt, {**row, "prompt": prompt, "response": reply, "proof": proof,
+                                                       "candidate": candidate, "lean_output": lean_out})
 
     def base_row(name, lane, attempt_no, statement_sha, tset=None):
         tset = tset or target_set
@@ -437,7 +485,7 @@ def main():
                 verdict, reason = "reject", "proof still contains sorry"
         row = {**base_row(name, lane, attempt_no, statement_sha, tset), "verdict": verdict, "reason": reason[:300],
                "failure_kind": failure_kind(verdict, reason),
-               "try_mode": "repair" if repair else "cold", "prev_id": prev.get("id") if repair else None,
+               "try_mode": "repair" if repair else "cold", "prev_id": previous_id(prev) if repair else None,
                "call_seconds": round(call_s, 1), "lean_seconds": round(lean_s, 1),
                "response_chars": len(reply or ""),
                "proof_sha": hashlib.sha256(proof.encode()).hexdigest() if proof else None}
@@ -456,14 +504,15 @@ def main():
                 t["errors"] += 1
                 pl["errors"] += 1
             target_done = (not args.stop_on_accept) and t["done"] >= planned_per_target
-        link, saved_id = record(row, prompt, reply, proof, candidate, lean_out)
+        telemetry_future = record(row, prompt, reply, proof, candidate, lean_out)
         if verdict in ("accept", "reject"):
             with lock:
-                memory[(tset, name, lane["backend"])] = {"id": saved_id, "verdict": verdict, "failure_kind": row["failure_kind"],
+                memory[(tset, name, lane["backend"])] = {"id": None, "verdict": verdict, "failure_kind": row["failure_kind"],
                                                          "reason": reason, "proof": proof, "lean_output": lean_out,
-                                                         "response_head": (reply or "")[:800]}
+                                                         "response_head": (reply or "")[:800],
+                                                         "telemetry_future": telemetry_future}
         print(f"[{n}/{args.max_calls}] {name} ← {lane['backend']} ({lane['tier']}) → {verdict}"
-              f"{' (repair)' if repair else ''}  call {call_s:.0f}s lean {lean_s:.1f}s  {reason[:110]}{link}", flush=True)
+              f"{' (repair)' if repair else ''}  call {call_s:.0f}s lean {lean_s:.1f}s  {reason[:110]}", flush=True)
         if verdict == "accept":
             vpath = ROOT / "verified" / tset / name / f"{lane['backend']}.lean"
             vpath.parent.mkdir(parents=True, exist_ok=True)
@@ -507,21 +556,26 @@ def main():
 
         inflight = {}                                    # thread → the cell it is asking about right now
 
-        def heartbeat(status="running"):
+        heartbeat_state = {"last_sent": 0.0}
+
+        def heartbeat(status="running", force=False):
+            now = time.monotonic()
             with lock:
+                if not force and now - heartbeat_state["last_sent"] < 5.0:
+                    return
+                heartbeat_state["last_sent"] = now
                 owed = len(work) + len(parked)
                 working = list(inflight.values())
-            sparebrains_heartbeat({"run_id": run_id, "mode": mode, "status": status, "cells_total": total_cells,
-                                   "cells_owed": owed, "calls": state["calls"], "accepts": state["accepts"],
-                                   "lanes": len(order), "targets": len(names), "working_on": working})
+                payload = {"run_id": run_id, "mode": mode, "status": status, "cells_total": total_cells,
+                           "cells_owed": owed, "calls": state["calls"], "accepts": state["accepts"],
+                           "lanes": len(order), "targets": len(names), "working_on": working,
+                           "lane_manifest": lane_manifest, "lane_roster_sha": lane_roster_sha}
+            submit_telemetry(sparebrains_heartbeat, payload)
 
         def pulse():
             """The site's "right now" box: only the cells in flight and the running counts."""
-            with lock:
-                working = list(inflight.values())
-            sparebrains_heartbeat({"run_id": run_id, "mode": mode, "status": "running", "working_on": working,
-                                   "calls": state["calls"], "accepts": state["accepts"]})
-        heartbeat()
+            heartbeat()
+        heartbeat(force=True)
         state["heartbeat"] = heartbeat
 
         def worker():
@@ -587,7 +641,7 @@ def main():
         for th in threads:
             th.join()
         remaining = len(work) + len(parked)
-        heartbeat("done")
+        heartbeat("done", force=True)
         print(f"ladder: {remaining} cells left for the next job ({len(parked)} behind a parked provider)")
     elif args.stop_on_accept:                            # ladder-asc/desc by hand: order matters, so sequential
         for name in names:
@@ -664,6 +718,7 @@ def main():
             print(f"cap reached: {args.max_calls} calls, {len(work)} pairs not attempted")
 
     calls, accepts = state["calls"], state["accepts"]
+    drain_telemetry()
     print(f"done: {calls} calls, {accepts} accepts, {state['errors']} lane errors, {state['skipped']} skipped "
           f"(benched), {state['waits']} rate-limit waits honored, {len(solved)}/{len(names)} targets solved, "
           f"mode {mode}, run {run_id}")
