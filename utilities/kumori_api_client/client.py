@@ -294,13 +294,15 @@ def llm_generate(prompt, max_tokens=500, temperature=1.0):
 
 
 def llm_chat(backend_name, messages, max_tokens=500, temperature=0.3, system=None,
-             app_name=None, timeout=None, timeout_s=None):
+             app_name=None, timeout=None, timeout_s=None, include_metadata=False):
     """Pinned-backend multi-turn chat. Returns (text, backend_name).
 
     app_name: optional consumer attribution (e.g. 'dos_bros', 'galactica').
     When set, lands in kumori_api_usage.app_name for this call's detail row.
     timeout: optional (connect, read) tuple for callers who tolerate slow
     lanes (e.g. probation-ward validation traffic); default (5, 60).
+    include_metadata: opt in to (text, backend, inference_metadata); default
+    stays the historical two-tuple. Older servers return an empty metadata dict.
     """
     body = {'backend': backend_name, 'messages': messages,
             'max_tokens': max_tokens, 'temperature': temperature}
@@ -311,6 +313,8 @@ def llm_chat(backend_name, messages, max_tokens=500, temperature=0.3, system=Non
     if timeout_s:
         body['timeout_s'] = int(timeout_s)   # server-side per-attempt ceiling (default 30, max 60): proofs need it
     data = _request('POST', '/api/v1/llm/chat', body, timeout=timeout or (5, 60))
+    if include_metadata:
+        return data.get('text'), data.get('backend'), data.get('inference') or {}
     return data.get('text'), data.get('backend')
 
 

@@ -71,6 +71,9 @@ jobs:
     timeout-minutes: 350
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Scheduled runs can wait hours; their event SHA predates newer ledgers.
+          ref: main
 
       - name: python deps
         run: python3 -m pip install -q requests
@@ -104,24 +107,36 @@ jobs:
               --max-per-provider "${{ inputs.max_per_provider }}"
           fi
 
-      - name: commit the ledger
+      - name: preserve outputs before publication
         if: always() && steps.run.outcome != 'skipped'
+        uses: actions/upload-artifact@v7
+        with:
+          name: attempt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ledger/
+            verified/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: publish the ledger
+        id: publish
+        if: always() && steps.run.outcome != 'skipped'
+        env:
+          RUN_ID: ${{ github.run_id }}
+          CALLS: ${{ steps.run.outputs.calls }}
+          ACCEPTS: ${{ steps.run.outputs.accepts }}
+          MODE: ${{ steps.run.outputs.mode }}
+          REMAINING: ${{ steps.run.outputs.remaining }}
+          LANES: ${{ steps.run.outputs.lanes }}
         run: |
           git config user.name "sparebrains-bot"
           git config user.email "sparebrains-bot@users.noreply.github.com"
-          mkdir -p ledger verified
-          git add -A -- ledger verified
-          if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi
-          git commit -q -F - <<MSG
-          attempt run ${{ github.run_id }}: ${{ steps.run.outputs.calls }} calls, ${{ steps.run.outputs.accepts }} accepts, ${{ steps.run.outputs.mode }}, ${{ steps.run.outputs.remaining }} cells left
+          python3 tools/publish.py --message "attempt run $RUN_ID: $CALLS calls, $ACCEPTS accepts, $MODE, $REMAINING cells left
 
-          Generated-by: kumori free-LLM pool (${{ steps.run.outputs.lanes }} lanes) via tools/attempt.py; verifier Lean v4.33.1 + mathlib v4.33.1 (tools/check.py)
-          MSG
-          git pull -q --rebase origin main
-          git push -q origin HEAD:main
+          Generated-by: kumori free-LLM pool ($LANES lanes), cost \$0, via tools/attempt.py; verifier Lean v4.33.1 + mathlib v4.33.1 (tools/check.py)"
 
       - name: chain the next job
-        if: always() && steps.run.outputs.remaining != '' && steps.run.outputs.remaining != '0'
+        if: success() && steps.publish.outcome == 'success' && steps.run.outputs.remaining != '' && steps.run.outputs.remaining != '0'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run attempt.yml --ref main

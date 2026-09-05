@@ -7,6 +7,70 @@ leads with the survival curve, the clock and the leaderboard, every equation sho
 (`DECISIONS.md` 2026-09-02). Earlier the same day: §2 steps 1–3 built, first verified proof, sweep 1.
 Point-in-time: every number here was measured on the day stated; re-derive before acting.
 
+## Immediate follow-up (2026-09-04)
+
+Kumori release receipt: commit `38d4f21`, App Engine `version-36iv8izn02` deployed
+2026-09-04 PT. Production `/llm/backends` returned 70 chat endpoints, including the
+corrected 21 reasoning endpoints with provenance. One eligible Groq `HELLO` call
+returned `openai/gpt-oss-120b`, `finish_reason=stop`, requested 32 / effective 1500
+tokens and a 60s adapter ceiling; provider effort remained honestly unreported.
+Validation: 20 offline tests, nine read-only SQL contracts, and the deployment gate's
+11 rendered pages / 842 live repository links passed. First updated workflow result
+and the next daily digest remain the production close-out checks below.
+
+Deployment-tool follow-up: the central GCP deploy automatically removed one older
+version (`version-3shfk88uc2`) and image while retaining three versions. Its automatic
+cleanup conflicts with the preservation rule; resolve that policy before another
+GCP deploy. Source is retained in Git; Sparebrains' git-only publication does not
+run this GCP cleanup.
+
+- [x] **Implement reliable ledger publishing (2026-09-04; production verification pending).**
+      Run 33881328961 produced 485 calls / 121 accepts, then failed rebasing nine proof files.
+      Serialization already existed. Its queued event SHA was older than the ledger at job start;
+      this is the likely source of repeated work. The workflow now checks out current `main`,
+      uploads ledger/proof recovery artifacts before publication, and publishes onto fresh main
+      with at most three attempts. Different accepted proofs are preserved under content-addressed
+      sibling names; same-run ledger overlaps append only new rows. The next job chains only after
+      successful publication. Offline git tests cover stale checkouts, concurrent pushes,
+      idempotence, and exhausted retries preserving the source outputs.
+- [ ] **Verify the first deployed publication and next daily digest.** Local tests are evidence of
+      implementation, not proof of a completed production run. Confirm the recovery artifact, commit,
+      successful chain, new inference metadata, and endpoint-based digest labels. Already-running
+      jobs retain their old workflow; the new publisher cannot repair a past run automatically.
+- [ ] **Design a measured proof-search swarm (after the lane baseline).** Once enough data exists
+      to know which lanes are strong on which rungs or failure kinds, let a coordinator hand a
+      target or partial proof to the lane best suited to the next step (for example: one lane
+      proposes, another repairs a Lean error, a fast lane checks routine subgoals, and a reasoning
+      lane handles the hard step). Record the full hand-off graph, lane/configuration, prompt mode,
+      and cost/latency. Keep cold single-lane results separate from swarm results so the yield
+      measurement remains honest; every final artifact still requires byte-identical kernel
+      verification. This is an orchestration experiment, not permission to feed a target's known
+      proof back into its own cold arm.
+- [ ] **Measure reasoning lanes as a separate cohort before swarm routing.** Include every live
+      lane marked reasoning/thinking in the same target sets, with capability metadata and (where
+      the provider exposes it) explicit low/medium/high reasoning effort recorded per attempt.
+      Corrected inventory: the Kumori registry returned **21 flagged endpoint definitions**
+      with enabled=true and lifecycle active/probationary/revived (2026-09-04), using
+      `e.is_reasoning OR m.is_reasoning_model OR m.supports_thinking`. The initial count of 12
+      omitted nine runtime-detected lanes. These are endpoints, not 21 distinct model weights,
+      proven effort controls, or 21 currently available/public-record-eligible lanes:
+      `groq-gptoss`, `groq-gptoss-20b`, `mistral-magistral`, `mistral-magistral-medium-2509`,
+      `mistral-magistral-medium-latest`, `mistral-magistral-small-2509`,
+      `opencode_zen-mimo-v2.5-free`, `opencode_zen-nemotron-3-ultra-free`,
+      `openrouter-nvidia-nemotron-3-nano-omni-30b-a3-48e0`, `vercel-laguna-s-2-1-free`,
+      `vercel-ling-3-0-flash-fin-free`, `vercel-minimax-m2-7-free`,
+      `groq-gpt-oss-safeguard-20b`, `openrouter-dots-3-note`, `openrouter-laguna-xs-2-1`,
+      `openrouter-ling-3-0-flash-fin`, `openrouter-minimax-m2-7`,
+      `openrouter-nemotron-3-5-content-safety`, `openrouter-north-mini-code`,
+      `openrouter-openrouter-free`, and `vercel-minimax-m3-free`.
+      Two `magistral-*-2509` endpoints have persistent upstream invalid-model errors; automatic
+      pausing keeps their history and nightly revival checks. `openrouter/free` chooses a model
+      per request; `*-latest` names are aliases. Existing Cohere/NVIDIA public-record restrictions
+      in `DECISIONS.md` still apply, and explicit lane selection cannot bypass the live roster.
+      Report reasoning-only
+      yield and compare it with non-reasoning lanes at the same rungs; do not infer a reasoning
+      effect from the broad `frontier` tier, which mixes model size and capability.
+
 ## 0. Root
 
 Idle free-tier compute → machine-verified public artifacts. The free pool cannot out-think
@@ -164,6 +228,43 @@ counter went 217 → 213 → 213, so B re-walked 26 of A's targets. Daytime sims
 half of the pool's Mistral spend and most of openrouter's 1,000/day cap; turned down 2026-09-02
 (`DECISIONS.md`).
 
+## 2A. Reasoning cohort (separate test bucket)
+
+**Instrumentation implemented 2026-09-04; first production rows pending.** Kumori's backend API,
+runtime selection, and canary now include all three capability flags. Each new Sparebrains ledger
+and telemetry row records `capability` (flags and provenance, model slug and identity type),
+`request_config` (token limit, temperature, client/router/verifier timeout, effort unrequested),
+`returned_backend`, and the router's `inference` evidence (effective token floor, adapter timeout,
+returned provider model where available, transport, finish reason, and answer field). Unknown
+provider effort stays null with `provider_default_unreported`; older rows are not guessed/backfilled.
+Gemini adapters that explicitly disable thinking are labeled accordingly. This records the current
+baseline; low/medium/high arms still require provider-specific support validation and a distinct
+configuration key before launch. Runtime detection is a signal, not proof that a provider accepts
+an effort parameter.
+
+Reasoning-capable lanes get their own readout rather than disappearing inside the general
+leaderboard. Use the same targets, prompts, verifier, and three-try budget where possible; the
+independent variables are lane capability and any provider-supported effort setting.
+
+Track separately: verified per 1,000 calls and verified/answered by rung; cold versus repair yield;
+failure kinds; call and Lean latency; output length; provider errors; and whether a reasoning lane
+clears a rung no non-reasoning lane clears. Effort variants (low/medium/high) are separate
+configurations when the API exposes them. Require matched target coverage and enough answered tries
+per rung before calling a reasoning lane better. Once stable, feed its measured specialties into the
+proof-search swarm; keep this cohort separate from the cold baseline.
+
+**Reasoning-lane availability proof (next validation step):** do not treat a 503 benched response
+as a dead model and do not hammer it. A small smoke job should first call Kumori's status/eligibility
+path, record the provider's reset hint and breaker reason, and send one `HELLO` request only to lanes
+currently eligible. For benched lanes, schedule the check after the reported UTC reset or pacing
+window (with a bounded retry, not a tight loop). Record one row per lane with registry flags,
+eligibility, upstream response, latency, and timestamp; classify outcomes as `answered`, `benched`,
+`error`, or `empty`, and keep this availability ledger separate from proof-yield data. Acceptance:
+every member of the corrected 21-endpoint inventory has either a successful response, a documented
+public-record exclusion, or a time-stamped model/provider/breaker restriction after two reset-aware
+validation windows. Invalid-model errors have unknown recovery time; a future probe is not a recovery
+promise. Track cohort membership changes instead of holding the live denominator at 21 forever.
+
 ## 3. Lanes, and the substrate each one fits
 
 | lane | verifier | substrate | status |
@@ -233,8 +334,9 @@ there is no row where the pool is its own judge.
       rule is simpler: never subscribe the org to Copilot Business; a free org with public repos has no
       billable surface. Deep-search receipt in the session; Copilot adds nothing this project lacks.
 - [ ] The 09-01 mistral spike (§1): what drove 1,723 calls against a 52/day norm.
-- [ ] kumori cleanup, not this repo: the Tier-0 daily pacing 503 says "spent this month's free token
-      budget" with a retry-after to next month; it is a one-day rest (`DECISIONS.md` 2026-09-02).
+- [x] kumori Tier-0 daily pacing labels/reset hints fixed in code (2026-09-04): the actual gate
+      supplies its reason, so daily pacing reports UTC midnight and exhausted monthly budgets report
+      month reset. Existing limits and caller shares stay as configured. Deployment verification pending.
 - [ ] kumori cleanup, not this repo: `mistral-mistral-large-latest` and `-large-2512` 403 on the
       primary key on every call (paid models in the free pool?); the breaker rotates keys each time.
 - [ ] kumori cleanup, not this repo: GitHub Models retired 2026-07-30; four router lanes still

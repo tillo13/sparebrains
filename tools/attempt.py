@@ -93,16 +93,22 @@ def lanes(explicit, min_tier=None, skip_benched=False):
     out = []
     for b in raw:
         name = b.get("name") or b.get("backend")
-        if not name or b.get("enabled") is False or b.get("modality") not in (None, "chat"):
+        if (not name or b.get("enabled") is False or b.get("modality") not in (None, "chat")
+                or b.get("lifecycle_status") not in (None, "active", "probationary", "revived")):
             continue
         tier = (b.get("quality_tier") or "unknown").lower()
         out.append({"backend": name, "provider": b.get("provider") or b.get("route") or name.split("-")[0],
-                    "model": b.get("model"), "tier": tier, "rank": TIER_RANK.get(tier, -1)})
+                    "model": b.get("model"), "tier": tier, "rank": TIER_RANK.get(tier, -1),
+                    "capability": {k: b.get(k) for k in (
+                        "is_reasoning_model", "supports_thinking", "reasoning_sources", "model_slug",
+                        "model_identity_kind", "reasoning_effort_control")}})
     if explicit:
         want = [x.strip() for x in explicit.split(",") if x.strip()]
         known = {l["backend"]: l for l in out}
-        out = [known.get(w, {"backend": w, "provider": None, "model": None, "tier": "unknown", "rank": -1})
-               for w in want]
+        missing = [w for w in want if w not in known]
+        if missing:
+            raise ValueError(f"Requested lanes are absent from the live eligible catalog: {', '.join(missing)}")
+        out = [known[w] for w in want]
     barred = [l["backend"] for l in out if not public_record_ok(l)]
     out = [l for l in out if public_record_ok(l)]
     print(f"skipping {len(barred)} lane(s) whose provider terms forbid a public record: {', '.join(barred) or 'none'}")
@@ -401,7 +407,12 @@ def main():
         return {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "run_id": run_id,
                 "target_set": tset, "target": name, "statement_sha": statement_sha, "rung": rung, "rung_rank": rank,
                 "backend": lane["backend"], "provider": lane["provider"], "model": lane["model"],
-                "quality_tier": lane["tier"], "tier_rank": lane["rank"], "attempt_no": attempt_no, "mode": mode}
+                "quality_tier": lane["tier"], "tier_rank": lane["rank"], "attempt_no": attempt_no, "mode": mode,
+                "capability": lane.get("capability", {}),
+                "request_config": {"max_tokens": args.max_tokens, "temperature": 0.2,
+                                   "reasoning_effort": None, "router_timeout_s": 60,
+                                   "client_read_timeout_s": args.call_timeout,
+                                   "lean_timeout_s": args.lean_timeout}}
 
     def skip(name, lane, attempt_no, why):
         """A pair the router would refuse: recorded honestly, no model call, no Lean."""
@@ -436,13 +447,14 @@ def main():
         prompt = repair_prompt(target_text, prev) if repair else ASK + target_text
         t0 = time.monotonic()
         reply, err = "", None
+        returned_backend, inference = None, {}
         with provider_lock[lane["provider"]]:
             for tries in (1, 2):
                 try:
-                    reply, _ = llm_chat(lane["backend"], [{"role": "user", "content": prompt}],
+                    reply, returned_backend, inference = llm_chat(lane["backend"], [{"role": "user", "content": prompt}],
                                         max_tokens=args.max_tokens, temperature=0.2, system=SYSTEM,
                                         app_name="sparebrains", timeout=(10, args.call_timeout),
-                                        timeout_s=60)                   # router's per-attempt ceiling; 30 s default cuts slow proofs
+                                        timeout_s=60, include_metadata=True)
                     err = None
                     break
                 except KumoriAPIError as e:
@@ -484,6 +496,7 @@ def main():
             if verdict == "wellformed":
                 verdict, reason = "reject", "proof still contains sorry"
         row = {**base_row(name, lane, attempt_no, statement_sha, tset), "verdict": verdict, "reason": reason[:300],
+               "returned_backend": returned_backend, "inference": inference,
                "failure_kind": failure_kind(verdict, reason),
                "try_mode": "repair" if repair else "cold", "prev_id": previous_id(prev) if repair else None,
                "call_seconds": round(call_s, 1), "lean_seconds": round(lean_s, 1),
