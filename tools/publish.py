@@ -37,6 +37,18 @@ def changed_outputs(repo):
     return files
 
 
+def snapshot_outputs(repo, destination):
+    """Archive this run's changed outputs; do not re-upload the entire history."""
+    files = changed_outputs(Path(repo).resolve())
+    destination = Path(destination)
+    for name, content in files.items():
+        path = destination / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    print(f'recovery snapshot: {len(files)} changed output files', flush=True)
+    return files
+
+
 def preserve_outputs(worktree, files):
     for name, content in sorted(files.items()):
         path = worktree / name
@@ -107,6 +119,12 @@ def publish(repo, message, attempts=3, before_push=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--message', required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--message')
+    mode.add_argument('--snapshot', type=Path)
     args = parser.parse_args()
-    publish(Path(__file__).resolve().parent.parent, args.message)
+    repo = Path(__file__).resolve().parent.parent
+    if args.snapshot:
+        snapshot_outputs(repo, args.snapshot)
+    else:
+        publish(repo, args.message)

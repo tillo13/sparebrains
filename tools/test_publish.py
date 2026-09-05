@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from publish import git, publish, preserve_outputs
+from publish import git, publish, preserve_outputs, snapshot_outputs
 
 
 class PublishTests(unittest.TestCase):
@@ -39,6 +39,15 @@ class PublishTests(unittest.TestCase):
         git(repo, 'add', '.')
         git(repo, 'commit', '-m', message)
         git(repo, 'push', 'origin', 'HEAD:main')
+
+    def test_recovery_snapshot_contains_only_this_runs_changes(self):
+        self.write(self.job, 'ledger/primer/job.jsonl', b'{"id":2}\n')
+        self.write(self.job, self.proof, b'this accepted proof\n')
+        destination = self.root / 'recovery'
+        files = snapshot_outputs(self.job, destination)
+        self.assertEqual(set(files), {'ledger/primer/job.jsonl', self.proof})
+        self.assertFalse((destination / 'ledger/primer/base.jsonl').exists())
+        self.assertEqual((destination / self.proof).read_bytes(), b'this accepted proof\n')
 
     def test_stale_job_keeps_both_proofs_and_ledgers(self):
         before = git(self.job, 'rev-parse', 'HEAD').stdout

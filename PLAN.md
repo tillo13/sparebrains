@@ -28,7 +28,8 @@ run this GCP cleanup.
       Run 33881328961 produced 485 calls / 121 accepts, then failed rebasing nine proof files.
       Serialization already existed. Its queued event SHA was older than the ledger at job start;
       this is the likely source of repeated work. The workflow now checks out current `main`,
-      uploads ledger/proof recovery artifacts before publication, and publishes onto fresh main
+      uploads only this run's changed ledger/proof recovery artifacts before publication (avoiding
+      repeated backups of the whole history), and publishes onto fresh main
       with at most three attempts. Different accepted proofs are preserved under content-addressed
       sibling names; same-run ledger overlaps append only new rows. The next job chains only after
       successful publication. Offline git tests cover stale checkouts, concurrent pushes,
