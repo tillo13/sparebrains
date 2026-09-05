@@ -4,5 +4,5 @@ import Mathlib
 theorem primer_advmultiplication_02_mul_left_ne_zero (a b : ℕ) (h : a * b ≠ 0) : b ≠ 0 := by
   intro hb
   have : a * b = 0 := by
-    simpa [hb] using Nat.mul_zero a
+    simpa [hb] using mul_zero a
   exact h this

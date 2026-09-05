@@ -10,4 +10,4 @@ theorem mathd_algebra_139 (s : ℝ → ℝ → ℝ)
     s 3 11 = 1 / 33 := by
   rw [h₀ 3 (by norm_num) 11 (by norm_num)]
   field_simp
-  ring
+  norm_num

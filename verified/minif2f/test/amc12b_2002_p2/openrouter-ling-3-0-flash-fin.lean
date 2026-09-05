@@ -10,4 +10,4 @@ $ \textbf{(A)}\ 0 \qquad \textbf{(B)}\ 1 \qquad \textbf{(C)}\ 10 \qquad \textbf{
 theorem amc12b_2002_p2 (x : ℤ) (h₀ : x = 4) :
     (3 * x - 2) * (4 * x + 1) - (3 * x - 2) * (4 * x) + 1 = 11 := by
   rw [h₀]
-  ring
+  norm_num

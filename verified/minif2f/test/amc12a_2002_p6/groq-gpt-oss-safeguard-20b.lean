@@ -11,4 +11,4 @@ theorem amc12a_2002_p6 (n : ℕ) (h₀ : 0 < n) : ∃ m, m > n ∧ ∃ p, m * p 
   refine ⟨n + 1, ?_, ?_⟩
   · exact Nat.lt_succ_self n
   · refine ⟨1, ?_⟩
-    simpa [Nat.mul_one] using Nat.le_add_right (n + 1) 1
+    simpa [Nat.mul_one] using Nat.le_succ (n + 1)

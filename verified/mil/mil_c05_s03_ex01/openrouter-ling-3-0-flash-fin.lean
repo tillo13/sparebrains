@@ -6,6 +6,7 @@ open BigOperators
 theorem mil_c05_s03_ex01 {m : ℕ} (h0 : m ≠ 0) (h1 : m ≠ 1) : 2 ≤ m := by
   cases m with
   | zero => exact False.elim (h0 rfl)
-  | succ n => cases n with
+  | succ n =>
+    cases n with
     | zero => exact False.elim (h1 rfl)
-    | succ n' => exact Nat.succ_le_succ (Nat.succ_le_succ (Nat.zero_le n'))
+    | succ n => exact Nat.succ_le_succ (Nat.succ_le_succ (Nat.zero_le n))

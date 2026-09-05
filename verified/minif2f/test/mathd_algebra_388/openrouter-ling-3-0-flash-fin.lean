@@ -13,8 +13,6 @@ open scoped Real
 compute $x$. -/
 theorem mathd_algebra_388 (x y z : ℝ) (h₀ : 3 * x + 4 * y - 12 * z = 10)
     (h₁ : -2 * x - 3 * y + 9 * z = -4) : x = 14 := by
-  have h₂ : 3 * (3 * x + 4 * y - 12 * z) + 4 * (-2 * x - 3 * y + 9 * z) = x := by ring
-  rw [← h₂]
-  rw [h₀]
-  rw [h₁]
+  have : x = 3 * (3 * x + 4 * y - 12 * z) + 4 * (-2 * x - 3 * y + 9 * z) := by ring
+  rw [this, h₀, h₁]
   ring
