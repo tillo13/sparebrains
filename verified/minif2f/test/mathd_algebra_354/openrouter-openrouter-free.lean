@@ -1,0 +1,15 @@
+import Mathlib
+
+open scoped Nat
+open scoped Real
+
+/--
+In an arithmetic sequence, the 7th term is 30, and the 11th term is 60. What is the 21st term of this sequence? -/
+theorem mathd_algebra_354 (a d : ℝ) (h₀ : a + 6 * d = 30) (h₁ : a + 10 * d = 60) :
+    a + 20 * d = 135 := by
+  have d_eq : d = 15 / 2 := by linarith [h₀, h₁]
+  have a_eq : a = 30 - 6 * d := by linarith [h₀]
+  calc a + 20 * d = (30 - 6 * d) + 20 * d := by rw [a_eq]
+               _ = 30 + 14 * d := by ring
+               _ = 30 + 14 * (15 / 2) := by rw [d_eq]
+               _ = 135 := by norm_num
