@@ -1,0 +1,13 @@
+import Mathlib
+
+/-- Natural Number Game (Lean 4), Power world, level 5: pow_two. Restated over Mathlib's ℕ. Source: https://github.com/leanprover-community/NNG4/blob/main/Game/Levels/Power/L05pow_two.lean, Apache-2.0. -/
+theorem primer_power_05_pow_two (a : ℕ) : a ^ 2 = a * a := by
+  have h_main : a ^ 2 = a * a := by
+    rw [pow_two]
+    <;> simp [mul_comm]
+    <;> ring
+    <;> simp_all [pow_two]
+    <;> linarith
+  
+  rw [h_main]
+  <;> simp_all
